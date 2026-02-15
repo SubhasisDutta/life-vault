@@ -29,6 +29,17 @@ When you first install the extension, a guided setup wizard helps you personaliz
 
 All names are dynamically used throughout the app via placeholders, making the experience personal to your family.
 
+### Help Guide
+
+Access the built-in Help Guide via the **❓ Help** button to:
+
+- **Overview** - Get started with step-by-step instructions
+- **All Categories** - Browse all 15 categories and 54 folders with descriptions
+- **Video Guides** - Curated educational resources explaining estate planning concepts
+- **Tips** - Best practices for organizing your digital legacy
+
+The Help Guide includes searchable content and expandable category details to help you understand what information to gather for each section.
+
 ### Settings Panel
 
 Access settings anytime via the **gear icon** to:
@@ -169,7 +180,7 @@ Each folder includes:
 
 ```
 life-vault/
-├── manifest.json      # Chrome extension configuration (v1.2.0)
+├── manifest.json      # Chrome extension configuration (v1.3.0)
 ├── app.html           # Main application HTML with styles
 ├── app.js             # Core application logic (~1300 lines)
 ├── data.js            # Categories, folders, and checklist items
@@ -271,6 +282,7 @@ Add a new category object to the `CATEGORIES` array in `data.js`.
 
 | Version | Changes |
 |---------|---------|
+| **v1.3.0** | Built-in Help Guide with overview, all categories browser, curated video guides, tips section, and searchable content |
 | **v1.2.0** | Dynamic children items (auto-expand for multiple children), dynamic bank account items, foreign/international templates (bank, property, tax), foreign travel document support |
 | **v1.1.0** | Generic release with setup wizard, settings panel, placeholder system, multiple children support, configurable bank accounts, quick links |
 | **v1.0.0** | Initial release with 15 categories, 50+ templates, and full export functionality |

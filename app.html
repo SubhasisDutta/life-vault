@@ -116,6 +116,45 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;backgrou
 .bank-item input,.link-item input{flex:1}
 .remove-item-btn{background:rgba(239,68,68,0.2);border:1px solid rgba(239,68,68,0.3);color:#FCA5A5;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:14px}
 .add-item-btn{background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);color:#6EE7B7;border-radius:6px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;margin-top:4px}
+.help-modal{max-width:900px;max-height:85vh}
+.help-nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1)}
+.help-nav-btn{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:6px 14px;font-size:11px;font-weight:600;color:#94A3B8;cursor:pointer;transition:all 0.2s}
+.help-nav-btn.active{background:rgba(99,102,241,0.2);border-color:rgba(99,102,241,0.4);color:#A5B4FC}
+.help-nav-btn:hover{border-color:rgba(255,255,255,0.2);color:#CBD5E1}
+.help-search{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 14px;font-size:13px;color:white;outline:none;width:100%;margin-bottom:16px}
+.help-search:focus{border-color:rgba(99,102,241,0.5)}
+.help-section{margin-bottom:24px}
+.help-section-title{font-size:16px;font-weight:700;color:white;margin-bottom:12px;display:flex;align-items:center;gap:10px}
+.help-section-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.help-category{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:10px;margin-bottom:12px;overflow:hidden}
+.help-category-header{padding:14px 16px;cursor:pointer;display:flex;align-items:center;gap:12px;transition:background 0.2s}
+.help-category-header:hover{background:rgba(255,255,255,0.03)}
+.help-category-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.help-category-info{flex:1;min-width:0}
+.help-category-name{font-size:14px;font-weight:700;color:white;margin-bottom:2px}
+.help-category-desc{font-size:11px;color:#94A3B8;line-height:1.4}
+.help-category-meta{font-size:10px;color:#64748B;margin-top:4px}
+.help-category-arrow{color:#64748B;transition:transform 0.2s;font-size:12px}
+.help-category.open .help-category-arrow{transform:rotate(180deg)}
+.help-category-body{display:none;padding:0 16px 16px;border-top:1px solid rgba(255,255,255,0.06)}
+.help-category.open .help-category-body{display:block}
+.help-folder{background:rgba(255,255,255,0.02);border-radius:8px;padding:12px;margin-top:10px}
+.help-folder-name{font-size:12px;font-weight:600;color:#CBD5E1;margin-bottom:6px}
+.help-folder-instructions{font-size:11px;color:#94A3B8;line-height:1.5;margin-bottom:8px}
+.help-folder-items{font-size:11px;color:#64748B}
+.help-video-card{background:linear-gradient(135deg,rgba(239,68,68,0.1),rgba(239,68,68,0.05));border:1px solid rgba(239,68,68,0.2);border-radius:10px;padding:14px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start}
+.help-video-icon{font-size:24px;flex-shrink:0}
+.help-video-info{flex:1}
+.help-video-title{font-size:13px;font-weight:600;color:white;margin-bottom:4px}
+.help-video-desc{font-size:11px;color:#94A3B8;line-height:1.4;margin-bottom:6px}
+.help-video-link{font-size:11px;color:#F87171;text-decoration:none;font-weight:600}
+.help-video-link:hover{text-decoration:underline}
+.help-tip{background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.2);border-radius:8px;padding:12px;margin-bottom:12px}
+.help-tip-title{font-size:12px;font-weight:700;color:#6EE7B7;margin-bottom:4px}
+.help-tip-text{font-size:11px;color:#94A3B8;line-height:1.5}
+.help-intro{background:linear-gradient(135deg,rgba(99,102,241,0.1),rgba(236,72,153,0.08));border-radius:12px;padding:20px;margin-bottom:20px;border:1px solid rgba(255,255,255,0.08)}
+.help-intro h3{font-size:16px;font-weight:700;color:white;margin-bottom:8px}
+.help-intro p{font-size:13px;color:#CBD5E1;line-height:1.6}
 </style>
 </head>
 <body>

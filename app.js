@@ -40,6 +40,10 @@
   let showNok = {};
   let modalOpen = null;
   let settingsModalOpen = false;
+  let helpModalOpen = false;
+  let helpSearchQuery = "";
+  let helpActiveSection = "overview";
+  let helpExpandedCategories = {};
   let currentSetupStep = 0;
 
   function saveData(key, data) {
@@ -461,6 +465,256 @@
     return html;
   }
 
+  // === RENDER HELP MODAL ===
+  function renderHelpModal() {
+    const HELP_VIDEOS = [
+      {
+        title: "Estate Planning Basics",
+        desc: "Learn the fundamentals of estate planning from the ACTEC Foundation video library.",
+        url: "https://www.actec.org/resource-center/video/",
+        source: "ACTEC"
+      },
+      {
+        title: "Wills vs Trusts Explained",
+        desc: "Understand the key differences between wills and living trusts for avoiding probate.",
+        url: "https://www.ramseysolutions.com/retirement/what-is-a-living-trust",
+        source: "Ramsey Solutions"
+      },
+      {
+        title: "Term vs Whole Life Insurance",
+        desc: "A beginner-friendly explanation of the two main types of life insurance.",
+        url: "https://www.trustage.com/learn/life-insurance/term-vs-whole-life-insurance-video",
+        source: "TrustAge"
+      },
+      {
+        title: "401(k) vs IRA Explained",
+        desc: "Understand retirement account types and how to prioritize your savings.",
+        url: "https://www.fidelity.com/learning-center/smart-money/ira-vs-401k",
+        source: "Fidelity"
+      },
+      {
+        title: "Power of Attorney & Healthcare Directives",
+        desc: "Learn why POA and healthcare directives are critical estate planning documents.",
+        url: "https://www.actec.org/resource-center/",
+        source: "ACTEC"
+      },
+      {
+        title: "Beneficiary Designations",
+        desc: "Why beneficiary designations override your will and how to keep them updated.",
+        url: "https://www.wealth.com/resources/estate-planning/beneficiary-designation-explained/",
+        source: "Wealth.com"
+      },
+      {
+        title: "Digital Estate Planning",
+        desc: "How to organize digital accounts and password managers for your family.",
+        url: "https://blog.1password.com/get-started-digital-estate-planning/",
+        source: "1Password"
+      },
+      {
+        title: "COBRA Health Insurance",
+        desc: "Understand your rights to continue health coverage after job loss or death of spouse.",
+        url: "https://www.dol.gov/general/topic/health-plans/cobra",
+        source: "Dept. of Labor"
+      }
+    ];
+
+    let html = `<div class="modal-overlay" data-action="close-modal-overlay">
+      <div class="modal help-modal" data-modal-inner="true">
+        <div class="modal-header">
+          <div class="modal-title">\uD83D\uDCD6 Help Guide</div>
+          <button class="modal-close" data-action="close-help">&times;</button>
+        </div>
+        <div class="modal-body">
+
+          <input class="help-search" type="text" placeholder="Search help topics..." value="${escAttr(helpSearchQuery)}" id="help-search-input">
+
+          <div class="help-nav">
+            <button class="help-nav-btn${helpActiveSection === 'overview' ? ' active' : ''}" data-action="help-set-section" data-section="overview">Overview</button>
+            <button class="help-nav-btn${helpActiveSection === 'categories' ? ' active' : ''}" data-action="help-set-section" data-section="categories">All Categories</button>
+            <button class="help-nav-btn${helpActiveSection === 'videos' ? ' active' : ''}" data-action="help-set-section" data-section="videos">Video Guides</button>
+            <button class="help-nav-btn${helpActiveSection === 'tips' ? ' active' : ''}" data-action="help-set-section" data-section="tips">Tips</button>
+          </div>`;
+
+    // Filter categories by search
+    const searchLower = helpSearchQuery.toLowerCase();
+    const filteredCategories = getProcessedCategories().filter(cat => {
+      if (!helpSearchQuery) return true;
+      if (cat.name.toLowerCase().includes(searchLower)) return true;
+      if (cat.description.toLowerCase().includes(searchLower)) return true;
+      return cat.folders.some(f =>
+        f.name.toLowerCase().includes(searchLower) ||
+        f.instructions.toLowerCase().includes(searchLower)
+      );
+    });
+
+    if (helpActiveSection === 'overview') {
+      html += `
+        <div class="help-intro">
+          <h3>\uD83D\uDEE1\uFE0F Welcome to Family Life Vault</h3>
+          <p>This comprehensive system helps you organize everything your family needs in case of emergency.
+          With <strong>${getProcessedCategories().length} categories</strong> and <strong>${getStats().folders} folders</strong> covering
+          <strong>${getStats().total} actionable items</strong>, you can systematically document your entire digital legacy.</p>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">\uD83D\uDEA6 Getting Started</div>
+
+          <div class="help-tip">
+            <div class="help-tip-title">Step 1: Start with Critical Items</div>
+            <div class="help-tip-text">Use the "Critical" filter at the top to focus on the most important items first. These are marked in red and should be your first priority.</div>
+          </div>
+
+          <div class="help-tip">
+            <div class="help-tip-title">Step 2: Fill in Details</div>
+            <div class="help-tip-text">Don't just check boxes - click "+ Details" on each item to fill in the detailed template. This information is what your family actually needs.</div>
+          </div>
+
+          <div class="help-tip">
+            <div class="help-tip-title">Step 3: Export & Backup</div>
+            <div class="help-tip-text">Use "Export Data" regularly to create backups. Store the JSON file securely. You can also export individual items as PDF or Markdown.</div>
+          </div>
+
+          <div class="help-tip">
+            <div class="help-tip-title">Step 4: Share with Your NOK</div>
+            <div class="help-tip-text">Each folder has "Instructions for ${escAttr(settings.partnerName)} (Next of Kin)" - expandable sections with specific guidance for your family member.</div>
+          </div>
+        </div>
+
+        <div class="help-section">
+          <div class="help-section-title">\uD83C\uDFA5 Recommended Learning</div>`;
+
+      HELP_VIDEOS.slice(0, 4).forEach(video => {
+        html += `
+          <div class="help-video-card">
+            <div class="help-video-icon">\uD83C\uDFAC</div>
+            <div class="help-video-info">
+              <div class="help-video-title">${video.title}</div>
+              <div class="help-video-desc">${video.desc}</div>
+              <a href="${video.url}" target="_blank" class="help-video-link">\u25B6 Learn More (${video.source})</a>
+            </div>
+          </div>`;
+      });
+
+      html += `</div>`;
+    }
+
+    if (helpActiveSection === 'categories') {
+      html += `<div class="help-section">
+        <div class="help-section-title">\uD83D\uDCC1 All ${filteredCategories.length} Categories</div>`;
+
+      filteredCategories.forEach(cat => {
+        const isExpanded = helpExpandedCategories[cat.id];
+        const folderCount = cat.folders.length;
+        const itemCount = cat.folders.reduce((a, f) => a + f.items.length, 0);
+
+        html += `
+          <div class="help-category${isExpanded ? ' open' : ''}">
+            <div class="help-category-header" data-action="help-toggle-category" data-cat-id="${cat.id}">
+              <div class="help-category-icon" style="background:${cat.color}20;border:1px solid ${cat.color}30">${cat.icon}</div>
+              <div class="help-category-info">
+                <div class="help-category-name">${escAttr(replacePlaceholders(cat.name))}</div>
+                <div class="help-category-desc">${escAttr(replacePlaceholders(cat.description))}</div>
+                <div class="help-category-meta">${folderCount} folders \u2022 ${itemCount} items</div>
+              </div>
+              <span class="help-category-arrow">\u25BE</span>
+            </div>
+            <div class="help-category-body">`;
+
+        cat.folders.forEach(folder => {
+          html += `
+              <div class="help-folder">
+                <div class="help-folder-name">\uD83D\uDCC2 ${escAttr(replacePlaceholders(folder.name))}</div>
+                <div class="help-folder-instructions">${escAttr(replacePlaceholders(folder.instructions))}</div>
+                <div class="help-folder-items">${folder.items.length} checklist items</div>
+              </div>`;
+        });
+
+        html += `</div></div>`;
+      });
+
+      html += `</div>`;
+    }
+
+    if (helpActiveSection === 'videos') {
+      html += `<div class="help-section">
+        <div class="help-section-title">\uD83C\uDFA5 Video Guides & Resources</div>
+        <p style="font-size:12px;color:#94A3B8;margin-bottom:16px">These curated resources explain key estate planning concepts in easy-to-understand terms.</p>`;
+
+      HELP_VIDEOS.forEach(video => {
+        html += `
+          <div class="help-video-card">
+            <div class="help-video-icon">\uD83C\uDFAC</div>
+            <div class="help-video-info">
+              <div class="help-video-title">${video.title}</div>
+              <div class="help-video-desc">${video.desc}</div>
+              <a href="${video.url}" target="_blank" class="help-video-link">\u25B6 Learn More (${video.source})</a>
+            </div>
+          </div>`;
+      });
+
+      html += `
+        <div class="help-tip" style="margin-top:16px">
+          <div class="help-tip-title">\uD83D\uDCA1 More Resources</div>
+          <div class="help-tip-text">
+            <strong>Khan Academy</strong> - Free personal finance courses<br>
+            <strong>Nolo.com</strong> - Legal self-help guides<br>
+            <strong>Consumer.gov</strong> - Government consumer resources<br>
+            <strong>SSA.gov</strong> - Social Security Administration guides
+          </div>
+        </div>
+      </div>`;
+    }
+
+    if (helpActiveSection === 'tips') {
+      html += `<div class="help-section">
+        <div class="help-section-title">\uD83D\uDCA1 Tips for Success</div>
+
+        <div class="help-tip">
+          <div class="help-tip-title">\uD83D\uDEA8 Start with the Essentials</div>
+          <div class="help-tip-text">Focus first on: Will, Healthcare Directive, Power of Attorney, Life Insurance beneficiaries, and Account access credentials. These are the most critical items if something happens.</div>
+        </div>
+
+        <div class="help-tip">
+          <div class="help-tip-title">\uD83D\uDCCA Track Your Progress</div>
+          <div class="help-tip-text">The progress rings show your completion percentage. Aim to get "Critical" items to 100% first, then work on "Important" items.</div>
+        </div>
+
+        <div class="help-tip">
+          <div class="help-tip-title">\uD83D\uDCC5 Schedule Annual Reviews</div>
+          <div class="help-tip-text">Set a yearly reminder to review and update your vault. Check for expired documents, changed accounts, new assets, and updated beneficiaries.</div>
+        </div>
+
+        <div class="help-tip">
+          <div class="help-tip-title">\uD83D\uDD10 Keep Secrets Safe</div>
+          <div class="help-tip-text">Store your password manager master password in a sealed envelope in a fireproof safe. This is the key to everything. Never email or text sensitive credentials.</div>
+        </div>
+
+        <div class="help-tip">
+          <div class="help-tip-title">\uD83D\uDCDD Fill Out the Details</div>
+          <div class="help-tip-text">The real value is in the details. Clicking "checkbox" only tracks what you've done - clicking "+ Details" captures the actual information your family needs.</div>
+        </div>
+
+        <div class="help-tip">
+          <div class="help-tip-title">\uD83D\uDC65 Include Your Partner</div>
+          <div class="help-tip-text">Walk through this vault with ${escAttr(settings.partnerName)}. Make sure they know where it is, how to access it, and what to do with the information.</div>
+        </div>
+
+        <div class="help-tip">
+          <div class="help-tip-title">\u26A0\uFE0F Beneficiaries Override Wills</div>
+          <div class="help-tip-text">The beneficiary you name on bank accounts, retirement accounts, and insurance policies will receive those assets regardless of what your will says. Review ALL beneficiary designations!</div>
+        </div>
+
+        <div class="help-tip">
+          <div class="help-tip-title">\uD83C\uDFE0 Property in Trust = No Probate</div>
+          <div class="help-tip-text">Transferring your home into a living trust avoids probate court. This saves time, money, and keeps the transfer private. Consult an estate attorney.</div>
+        </div>
+      </div>`;
+    }
+
+    html += `</div></div></div>`;
+    return html;
+  }
+
   // === RENDER ===
   function render() {
     // Show setup wizard if not complete
@@ -481,7 +735,10 @@
       <div class="logo">\uD83D\uDEE1\uFE0F</div>
       <div><div class="title">${escAttr(settings.familyName)} Life Vault</div>
       <div class="subtitle">Everything ${escAttr(settings.partnerName)} needs, in one place. Built for your family.</div></div>
-      <button class="settings-btn" data-action="open-settings" style="margin-left:auto">\u2699\uFE0F Settings</button>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button class="settings-btn" data-action="open-help">\u2753 Help</button>
+        <button class="settings-btn" data-action="open-settings">\u2699\uFE0F Settings</button>
+      </div>
     </div>`;
 
     // Stats bar
@@ -501,7 +758,6 @@
     html += `</div>`;
 
     html += `<div class="action-bar">
-      <button class="action-btn" data-action="export-all">Export Data</button>
       <button class="reset-btn" data-action="reset-all">Reset</button>
     </div>`;
     html += `</div>`; // stats-bar
@@ -666,6 +922,10 @@
       html += renderSettingsModal();
     }
 
+    if (helpModalOpen) {
+      html += renderHelpModal();
+    }
+
     document.getElementById("app").innerHTML = html;
 
     // Re-focus search input and restore cursor position
@@ -822,6 +1082,31 @@
         document.getElementById('import-file-input').click();
         break;
       }
+      // Help modal actions
+      case "open-help": {
+        helpModalOpen = true;
+        helpActiveSection = "overview";
+        helpSearchQuery = "";
+        helpExpandedCategories = {};
+        render();
+        break;
+      }
+      case "close-help": {
+        helpModalOpen = false;
+        render();
+        break;
+      }
+      case "help-set-section": {
+        helpActiveSection = el.dataset.section;
+        render();
+        break;
+      }
+      case "help-toggle-category": {
+        const catId = el.dataset.catId;
+        helpExpandedCategories[catId] = !helpExpandedCategories[catId];
+        render();
+        break;
+      }
       // Main app actions
       case "select-category": {
         const id = el.dataset.catId;
@@ -868,6 +1153,8 @@
         if (el.classList.contains("modal-overlay")) {
           if (settingsModalOpen) {
             settingsModalOpen = false;
+          } else if (helpModalOpen) {
+            helpModalOpen = false;
           } else {
             modalOpen = null;
           }
@@ -1253,7 +1540,7 @@
       templateData: templateData,
       settings: settings,
       exportDate: new Date().toISOString(),
-      version: "1.2.0"
+      version: "1.3.0"
     };
     const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1335,6 +1622,13 @@
       searchQuery = e.target.value;
       clearTimeout(window._searchTimeout);
       window._searchTimeout = setTimeout(function () {
+        render();
+      }, 200);
+    }
+    if (e.target.id === "help-search-input") {
+      helpSearchQuery = e.target.value;
+      clearTimeout(window._helpSearchTimeout);
+      window._helpSearchTimeout = setTimeout(function () {
         render();
       }, 200);
     }
