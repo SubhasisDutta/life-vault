@@ -9,7 +9,8 @@
     checked: "lifeorg-checked",
     templates: "lifeorg-templates",
     settings: "lifeorg-settings",
-    setupComplete: "lifeorg-setup-complete"
+    setupComplete: "lifeorg-setup-complete",
+    theme: "lifeorg-theme"
   };
 
   // === DEFAULT SETTINGS ===
@@ -23,7 +24,8 @@
       { name: "Primary Savings", type: "savings" },
       { name: "High-Yield Savings", type: "hys" }
     ],
-    quickLinks: []
+    quickLinks: [],
+    theme: "dark"
   };
 
   // State initialized as empty, populated async
@@ -31,6 +33,22 @@
   let templateData = {};
   let settings = { ...DEFAULT_SETTINGS };
   let setupComplete = false;
+  let currentTheme = "dark";
+
+  // === THEME MANAGEMENT ===
+  function applyTheme(theme) {
+    currentTheme = theme;
+    document.documentElement.setAttribute('data-theme', theme);
+    saveData(STORAGE_KEYS.theme, theme);
+  }
+
+  function getThemeIcon() {
+    return currentTheme === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19';
+  }
+
+  function getThemeLabel() {
+    return currentTheme === 'dark' ? 'Light Mode' : 'Dark Mode';
+  }
 
   // === STATE ===
   let activeCategory = null;
@@ -55,12 +73,15 @@
     STORAGE_KEYS.checked,
     STORAGE_KEYS.templates,
     STORAGE_KEYS.settings,
-    STORAGE_KEYS.setupComplete
+    STORAGE_KEYS.setupComplete,
+    STORAGE_KEYS.theme
   ], (result) => {
     checkedItems = result[STORAGE_KEYS.checked] || {};
     templateData = result[STORAGE_KEYS.templates] || {};
     settings = result[STORAGE_KEYS.settings] || { ...DEFAULT_SETTINGS };
     setupComplete = result[STORAGE_KEYS.setupComplete] || false;
+    currentTheme = result[STORAGE_KEYS.theme] || settings.theme || "dark";
+    applyTheme(currentTheme);
     render();
   });
 
@@ -446,6 +467,25 @@
           </div>
 
           <div class="tpl-section">
+            <div class="tpl-section-title">Appearance</div>
+            <div class="theme-section">
+              <div class="tpl-hint" style="margin-bottom:12px">Choose your preferred theme for the Life Vault interface</div>
+              <div class="theme-options">
+                <div class="theme-option${currentTheme === 'dark' ? ' active' : ''}" data-action="set-theme" data-theme="dark">
+                  <div class="theme-option-icon">\uD83C\uDF19</div>
+                  <div class="theme-option-label">Dark Mode</div>
+                  <div class="theme-option-desc">Easy on the eyes</div>
+                </div>
+                <div class="theme-option${currentTheme === 'light' ? ' active' : ''}" data-action="set-theme" data-theme="light">
+                  <div class="theme-option-icon">\u2600\uFE0F</div>
+                  <div class="theme-option-label">Light Mode</div>
+                  <div class="theme-option-desc">Bright & clear</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tpl-section">
             <div class="tpl-section-title">Data Management</div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <button class="export-btn" data-action="export-all">Export All Data</button>
@@ -736,6 +776,10 @@
       <div><div class="title">${escAttr(settings.familyName)} Life Vault</div>
       <div class="subtitle">Everything ${escAttr(settings.partnerName)} needs, in one place. Built for your family.</div></div>
       <div style="margin-left:auto;display:flex;gap:8px">
+        <button class="theme-toggle" data-action="toggle-theme" title="Switch to ${getThemeLabel()}">
+          <span class="theme-toggle-icon">${getThemeIcon()}</span>
+          <span>${getThemeLabel()}</span>
+        </button>
         <button class="settings-btn" data-action="open-help">\u2753 Help</button>
         <button class="settings-btn" data-action="open-settings">\u2699\uFE0F Settings</button>
       </div>
@@ -787,7 +831,7 @@
       html += `<button class="cat-btn${isActive ? ' active' : ''}" style="${isActive ? 'background:linear-gradient(90deg,' + cat.color + '20,transparent);border-color:' + cat.color + '40' : ''}" data-action="select-category" data-cat-id="${cat.id}">
         <div class="cat-icon" style="background:${cat.color}20;border:1px solid ${cat.color}30">${cat.icon}</div>
         <div style="flex:1;min-width:0">
-          <div class="cat-name" style="color:${isActive ? 'white' : '#CBD5E1'}">${escAttr(replacePlaceholders(cat.name))}</div>
+          <div class="cat-name"${isActive ? ' style="color:white"' : ''}>${escAttr(replacePlaceholders(cat.name))}</div>
           <div class="cat-prog-bar"><div class="cat-prog-fill" style="width:${prog}%;background:${cat.color}"></div></div>
         </div>
         <span class="cat-pct" style="color:${cat.color}">${Math.round(prog)}%</span>
@@ -859,7 +903,7 @@
         html += `<div class="folder-card${isOpen ? ' open' : ''}">`;
         html += `<button class="folder-btn" data-action="toggle-folder" data-folder-idx="${fi}">
           <div class="dot" style="background:${dotColor};${dotShadow}"></div>
-          <span class="folder-name" style="color:${isOpen ? 'white' : '#CBD5E1'}">\uD83D\uDCC1 ${escAttr(replacePlaceholders(folder.name))}</span>
+          <span class="folder-name"${isOpen ? ' style="color:white"' : ''}>\uD83D\uDCC1 ${escAttr(replacePlaceholders(folder.name))}</span>
           <span class="folder-count">${doneCount}/${items.length}</span>
           <div class="folder-prog"><div class="folder-prog-fill" style="width:${foldProg}%;background:${foldProg === 100 ? '#34D399' : activeCat.color}"></div></div>
           <span class="arrow">\u25BE</span>
@@ -1105,6 +1149,21 @@
         const catId = el.dataset.catId;
         helpExpandedCategories[catId] = !helpExpandedCategories[catId];
         render();
+        break;
+      }
+      // Theme toggle
+      case "toggle-theme": {
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        applyTheme(newTheme);
+        render();
+        break;
+      }
+      case "set-theme": {
+        const theme = el.dataset.theme;
+        if (theme) {
+          applyTheme(theme);
+          render();
+        }
         break;
       }
       // Main app actions

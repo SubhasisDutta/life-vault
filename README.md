@@ -15,6 +15,30 @@ A comprehensive Chrome extension for organizing digital legacy, estate planning,
 
 ## Features
 
+### Glassmorphism UI Design
+
+The app features a modern **Glassmorphism** design language with:
+
+- **Frosted glass effects** - Semi-transparent panels with backdrop blur
+- **Subtle gradients** - Indigo to purple to pink color scheme
+- **Smooth animations** - All interactions include fluid 0.3s transitions
+- **Depth & shadows** - Layered UI with glass-like shadows and glows
+- **Premium aesthetics** - Clean, modern look that's easy on the eyes
+
+### Light & Dark Theme
+
+Switch between themes anytime:
+
+| Theme | Description |
+|-------|-------------|
+| **Dark Mode** (default) | Deep slate backgrounds with frosted glass panels, optimized for low-light environments |
+| **Light Mode** | Soft lavender/white backgrounds with subtle glass effects, great for bright environments |
+
+**How to switch:**
+- Click the **sun/moon toggle button** in the header for quick switching
+- Or go to **Settings > Appearance** to select your preferred theme
+- Your preference is automatically saved and persists across sessions
+
 ### Personalized Setup Wizard
 
 When you first install the extension, a guided setup wizard helps you personalize your vault:
@@ -44,6 +68,7 @@ The Help Guide includes searchable content and expandable category details to he
 
 Access settings anytime via the **gear icon** to:
 
+- **Appearance** - Switch between light and dark themes
 - Update family member names
 - Add or remove children dynamically
 - Customize bank account names and types (Checking, Savings, High-Yield, Foreign, Credit Card, Investment)
@@ -180,13 +205,17 @@ Each folder includes:
 
 ```
 life-vault/
-├── manifest.json      # Chrome extension configuration (v1.3.0)
-├── app.html           # Main application HTML with styles
-├── app.js             # Core application logic (~1300 lines)
+├── manifest.json      # Chrome extension configuration (v1.4.0)
+├── app.html           # Main application HTML with Glassmorphism CSS
+├── app.js             # Core application logic (~1650 lines)
 ├── data.js            # Categories, folders, and checklist items
 ├── templates.js       # 50+ detailed template definitions
 ├── background.js      # Extension background service worker
-├── icons/             # Extension icons (16, 48, 128px)
+├── icons/             # Extension icons with "Life Vault" branding
+│   ├── icon16.svg     # 16px icon (LV initials)
+│   ├── icon48.svg     # 48px icon (LV initials)
+│   └── icon128.svg    # 128px icon (LIFE VAULT text)
+├── CLAUDE.md          # LLM context file for AI assistants
 └── README.md          # This file
 ```
 
@@ -202,6 +231,7 @@ All data is stored locally using Chrome's `chrome.storage.local` API:
 | `lifeorg-templates` | Template form data |
 | `lifeorg-settings` | User settings (names, bank accounts, links) |
 | `lifeorg-setup-complete` | Setup wizard completion flag |
+| `lifeorg-theme` | Theme preference (light/dark) |
 
 **Data never leaves your device unless you export it.**
 
@@ -282,6 +312,7 @@ Add a new category object to the `CATEGORIES` array in `data.js`.
 
 | Version | Changes |
 |---------|---------|
+| **v1.4.0** | **Glassmorphism UI redesign** with frosted glass effects, light/dark theme toggle, updated "Life Vault" branding on icons, CSS variables for theming, smooth transitions, and persistent theme preference |
 | **v1.3.0** | Built-in Help Guide with overview, all categories browser, curated video guides, tips section, and searchable content |
 | **v1.2.0** | Dynamic children items (auto-expand for multiple children), dynamic bank account items, foreign/international templates (bank, property, tax), foreign travel document support |
 | **v1.1.0** | Generic release with setup wizard, settings panel, placeholder system, multiple children support, configurable bank accounts, quick links |
