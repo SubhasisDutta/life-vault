@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<body>
+<p>Right-click each image below and "Save image as..." to the icons/ folder with the correct name.</p>
+<canvas id="c16" width="16" height="16"></canvas> icon16.png<br>
+<canvas id="c48" width="48" height="48"></canvas> icon48.png<br>
+<canvas id="c128" width="128" height="128"></canvas> icon128.png<br>
+<script>
+function drawIcon(id, size) {
+  const c = document.getElementById(id);
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, size, size);
+  g.addColorStop(0, '#6366F1');
+  g.addColorStop(1, '#EC4899');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.roundRect(0, 0, size, size, size * 0.2);
+  ctx.fill();
+  ctx.fillStyle = 'white';
+  ctx.font = `bold ${size * 0.5}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('DV', size/2, size/2);
+}
+drawIcon('c16', 16);
+drawIcon('c48', 48);
+drawIcon('c128', 128);
+</script>
+</body>
+</html>
