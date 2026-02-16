@@ -831,7 +831,7 @@
       html += `<button class="cat-btn${isActive ? ' active' : ''}" style="${isActive ? 'background:linear-gradient(90deg,' + cat.color + '20,transparent);border-color:' + cat.color + '40' : ''}" data-action="select-category" data-cat-id="${cat.id}">
         <div class="cat-icon" style="background:${cat.color}20;border:1px solid ${cat.color}30">${cat.icon}</div>
         <div style="flex:1;min-width:0">
-          <div class="cat-name"${isActive ? ' style="color:white"' : ''}>${escAttr(replacePlaceholders(cat.name))}</div>
+          <div class="cat-name"${isActive ? ' style="color:var(--text-primary)"' : ''}>${escAttr(replacePlaceholders(cat.name))}</div>
           <div class="cat-prog-bar"><div class="cat-prog-fill" style="width:${prog}%;background:${cat.color}"></div></div>
         </div>
         <span class="cat-pct" style="color:${cat.color}">${Math.round(prog)}%</span>
@@ -845,7 +845,7 @@
     if (!activeCat) {
       // DASHBOARD
       html += `<div class="welcome-box">
-        <h2 style="font-size:18px;font-weight:800;color:white;margin-bottom:8px">Welcome to your Life Vault, ${escAttr(settings.primaryUserName)}</h2>
+        <h2 style="font-size:18px;font-weight:800;color:var(--text-primary);margin-bottom:8px">Welcome to your Life Vault, ${escAttr(settings.primaryUserName)}</h2>
         <p style="font-size:13px;color:#94A3B8;line-height:1.6">This system ensures ${escAttr(settings.partnerName)} and your family have everything they need if you're not available.
         <strong style="color:#A5B4FC">${getProcessedCategories().length} color-coded categories</strong> and
         <strong style="color:#F9A8D4">${stats.folders} organized folders</strong> with <strong style="color:#6EE7B7">${stats.total} actionable items</strong>.
@@ -870,7 +870,7 @@
         html += `<div class="dash-card" data-action="select-category" data-cat-id="${cat.id}" data-hover-color="${cat.color}40">
           ${progressRingSVG(prog, 44, 4, cat.color)}
           <div style="flex:1">
-            <div style="font-size:13px;font-weight:700;color:white;margin-bottom:2px">${cat.icon} ${escAttr(replacePlaceholders(cat.name))}</div>
+            <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:2px">${cat.icon} ${escAttr(replacePlaceholders(cat.name))}</div>
             <div style="font-size:11px;color:#64748B;margin-bottom:6px">${cat.folders.length} folders &middot; ${doneItems}/${totalItems} items</div>
             <div style="font-size:11px;color:#94A3B8;line-height:1.4">${escAttr(replacePlaceholders(cat.description).substring(0, 90))}...</div>
           </div>
@@ -884,7 +884,7 @@
         <div style="display:flex;align-items:center;gap:10px">
           <div style="width:48px;height:48px;border-radius:12px;background:${activeCat.color}25;display:flex;align-items:center;justify-content:center;font-size:24px;border:2px solid ${activeCat.color}40">${activeCat.icon}</div>
           <div style="flex:1">
-            <h2 style="font-size:18px;font-weight:800;color:white;margin:0">${escAttr(replacePlaceholders(activeCat.name))}</h2>
+            <h2 style="font-size:18px;font-weight:800;color:var(--text-primary);margin:0">${escAttr(replacePlaceholders(activeCat.name))}</h2>
             <p style="font-size:12px;color:#94A3B8;margin:4px 0 0">${escAttr(replacePlaceholders(activeCat.description))}</p>
           </div>
           ${progressRingSVG(prog, 56, 5, activeCat.color)}
@@ -903,7 +903,7 @@
         html += `<div class="folder-card${isOpen ? ' open' : ''}">`;
         html += `<button class="folder-btn" data-action="toggle-folder" data-folder-idx="${fi}">
           <div class="dot" style="background:${dotColor};${dotShadow}"></div>
-          <span class="folder-name"${isOpen ? ' style="color:white"' : ''}>\uD83D\uDCC1 ${escAttr(replacePlaceholders(folder.name))}</span>
+          <span class="folder-name"${isOpen ? ' style="color:var(--text-primary)"' : ''}>\uD83D\uDCC1 ${escAttr(replacePlaceholders(folder.name))}</span>
           <span class="folder-count">${doneCount}/${items.length}</span>
           <div class="folder-prog"><div class="folder-prog-fill" style="width:${foldProg}%;background:${foldProg === 100 ? '#34D399' : activeCat.color}"></div></div>
           <span class="arrow">\u25BE</span>
