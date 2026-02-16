@@ -10,7 +10,8 @@
     templates: "lifeorg-templates",
     settings: "lifeorg-settings",
     setupComplete: "lifeorg-setup-complete",
-    theme: "lifeorg-theme"
+    theme: "lifeorg-theme",
+    customItems: "lifeorg-custom-items"
   };
 
   // === DEFAULT SETTINGS ===
@@ -34,6 +35,7 @@
   let settings = { ...DEFAULT_SETTINGS };
   let setupComplete = false;
   let currentTheme = "dark";
+  let customItems = {}; // { "catId-folderIdx": [{ text, priority, id }] }
 
   // === THEME MANAGEMENT ===
   function applyTheme(theme) {
@@ -63,6 +65,7 @@
   let helpActiveSection = "overview";
   let helpExpandedCategories = {};
   let currentSetupStep = 0;
+  let customItemModalOpen = null; // { catId, folderIdx } for adding new custom item
 
   function saveData(key, data) {
     chrome.storage.local.set({ [key]: data });
@@ -74,13 +77,15 @@
     STORAGE_KEYS.templates,
     STORAGE_KEYS.settings,
     STORAGE_KEYS.setupComplete,
-    STORAGE_KEYS.theme
+    STORAGE_KEYS.theme,
+    STORAGE_KEYS.customItems
   ], (result) => {
     checkedItems = result[STORAGE_KEYS.checked] || {};
     templateData = result[STORAGE_KEYS.templates] || {};
     settings = result[STORAGE_KEYS.settings] || { ...DEFAULT_SETTINGS };
     setupComplete = result[STORAGE_KEYS.setupComplete] || false;
     currentTheme = result[STORAGE_KEYS.theme] || settings.theme || "dark";
+    customItems = result[STORAGE_KEYS.customItems] || {};
     applyTheme(currentTheme);
     render();
   });
@@ -88,6 +93,20 @@
   // === HELPERS ===
   function itemKey(catId, fi, ii) { return `${catId}-${fi}-${ii}`; }
   function templateKey(catId, fi, ii) { return `tpl-${catId}-${fi}-${ii}`; }
+  function customItemKey(catId, fi, itemId) { return `custom-${catId}-${fi}-${itemId}`; }
+  function customTemplateKey(catId, fi, itemId) { return `tpl-custom-${catId}-${fi}-${itemId}`; }
+  function folderKey(catId, fi) { return `${catId}-${fi}`; }
+
+  // Get custom items for a folder
+  function getCustomItemsForFolder(catId, fi) {
+    const key = folderKey(catId, fi);
+    return customItems[key] || [];
+  }
+
+  // Generate unique ID for custom items
+  function generateCustomItemId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+  }
 
   // Replace placeholders in text with actual settings values
   function replacePlaceholders(text) {
@@ -194,6 +213,36 @@
           });
         }
 
+        // Add investment account items for brokerage folder
+        if (folder.name === 'Brokerage & Investment Accounts' && bankAccounts.length > 0) {
+          const investmentAccounts = bankAccounts.filter(b => b.type === 'investment');
+          investmentAccounts.forEach(account => {
+            const exists = newItems.some(item => item.text.includes(account.name));
+            if (!exists) {
+              newItems.splice(3, 0, {
+                text: `${account.name} — account #, login, beneficiaries`,
+                priority: 'critical',
+                _dynamicBank: true
+              });
+            }
+          });
+        }
+
+        // Add credit card items for credit cards folder
+        if (folder.name === 'Credit Cards' && bankAccounts.length > 0) {
+          const creditCards = bankAccounts.filter(b => b.type === 'credit');
+          creditCards.forEach(account => {
+            const exists = newItems.some(item => item.text.includes(account.name));
+            if (!exists) {
+              newItems.splice(1, 0, {
+                text: `${account.name} — card #, login, autopay status`,
+                priority: 'important',
+                _dynamicBank: true
+              });
+            }
+          });
+        }
+
         return { ...folder, items: newItems };
       });
 
@@ -210,6 +259,14 @@
           if (checkedItems[itemKey(cat.id, fi, ii)]) done++;
         }
       });
+      // Include custom items
+      const folderCustomItems = getCustomItemsForFolder(cat.id, fi);
+      folderCustomItems.forEach(ci => {
+        if (filter === "all" || ci.priority === filter) {
+          total++;
+          if (checkedItems[customItemKey(cat.id, fi, ci.id)]) done++;
+        }
+      });
     });
     return total === 0 ? 0 : (done / total) * 100;
   }
@@ -222,6 +279,14 @@
           if (filter === "all" || item.priority === filter) {
             total++;
             if (checkedItems[itemKey(cat.id, fi, ii)]) done++;
+          }
+        });
+        // Include custom items
+        const folderCustomItems = getCustomItemsForFolder(cat.id, fi);
+        folderCustomItems.forEach(ci => {
+          if (filter === "all" || ci.priority === filter) {
+            total++;
+            if (checkedItems[customItemKey(cat.id, fi, ci.id)]) done++;
           }
         });
       });
@@ -240,6 +305,16 @@
           if (item.priority === "critical") {
             critical++;
             if (checkedItems[itemKey(cat.id, fi, ii)]) critDone++;
+          }
+        });
+        // Include custom items
+        const folderCustomItems = getCustomItemsForFolder(cat.id, fi);
+        folderCustomItems.forEach(ci => {
+          total++;
+          if (checkedItems[customItemKey(cat.id, fi, ci.id)]) done++;
+          if (ci.priority === "critical") {
+            critical++;
+            if (checkedItems[customItemKey(cat.id, fi, ci.id)]) critDone++;
           }
         });
       });
@@ -755,6 +830,65 @@
     return html;
   }
 
+  // === RENDER CUSTOM ITEM MODAL ===
+  function renderCustomItemModal() {
+    const { catId, folderIdx } = customItemModalOpen;
+    const cat = getProcessedCategories().find(c => c.id === catId);
+    const folder = cat ? cat.folders[folderIdx] : null;
+
+    let html = `<div class="modal-overlay" data-action="close-modal-overlay">
+      <div class="modal" data-modal-inner="true" style="max-width:500px">
+        <div class="modal-header">
+          <div>
+            <div class="modal-title">\u2795 Add Custom Item</div>
+            <div style="font-size:12px;color:#94A3B8;margin-top:4px">${folder ? escAttr(replacePlaceholders(folder.name)) : ''}</div>
+          </div>
+          <button class="modal-close" data-action="close-custom-item-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="tpl-section">
+            <div class="tpl-section-title">Item Details</div>
+            <div class="tpl-field">
+              <label class="tpl-label">Item Description *</label>
+              <input class="tpl-input" id="custom-item-text" type="text" placeholder="Enter a description for this item...">
+              <div class="tpl-hint">What needs to be documented or tracked?</div>
+            </div>
+            <div class="tpl-field">
+              <label class="tpl-label">Priority Level *</label>
+              <div class="priority-selector">
+                <label class="priority-option">
+                  <input type="radio" name="custom-item-priority" value="critical">
+                  <span class="priority-chip" style="background:${PRIORITY_COLORS.critical.dot}20;color:${PRIORITY_COLORS.critical.dot};border:1px solid ${PRIORITY_COLORS.critical.dot}40">
+                    ${PRIORITY_COLORS.critical.label}
+                  </span>
+                </label>
+                <label class="priority-option">
+                  <input type="radio" name="custom-item-priority" value="important" checked>
+                  <span class="priority-chip" style="background:${PRIORITY_COLORS.important.dot}20;color:${PRIORITY_COLORS.important.dot};border:1px solid ${PRIORITY_COLORS.important.dot}40">
+                    ${PRIORITY_COLORS.important.label}
+                  </span>
+                </label>
+                <label class="priority-option">
+                  <input type="radio" name="custom-item-priority" value="optional">
+                  <span class="priority-chip" style="background:${PRIORITY_COLORS.optional.dot}20;color:${PRIORITY_COLORS.optional.dot};border:1px solid ${PRIORITY_COLORS.optional.dot}40">
+                    ${PRIORITY_COLORS.optional.label}
+                  </span>
+                </label>
+              </div>
+              <div class="tpl-hint">How urgent is this item?</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:20px">
+            <button class="save-btn" data-action="save-custom-item">Add Item</button>
+            <button class="export-btn" data-action="close-custom-item-modal">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+    return html;
+  }
+
   // === RENDER ===
   function render() {
     // Show setup wizard if not complete
@@ -864,9 +998,17 @@
       html += `<div class="dashboard-grid">`;
       getProcessedCategories().forEach(cat => {
         const prog = getCatProgress(cat);
-        const totalItems = cat.folders.reduce((a, f) => a + f.items.length, 0);
-        const doneItems = cat.folders.reduce((a, f, fi) =>
+        // Include custom items in the count
+        let totalItems = cat.folders.reduce((a, f) => a + f.items.length, 0);
+        let doneItems = cat.folders.reduce((a, f, fi) =>
           a + f.items.filter((_, ii) => checkedItems[itemKey(cat.id, fi, ii)]).length, 0);
+
+        // Add custom items
+        cat.folders.forEach((f, fi) => {
+          const folderCustomItems = getCustomItemsForFolder(cat.id, fi);
+          totalItems += folderCustomItems.length;
+          doneItems += folderCustomItems.filter(ci => checkedItems[customItemKey(cat.id, fi, ci.id)]).length;
+        });
         html += `<div class="dash-card" data-action="select-category" data-cat-id="${cat.id}" data-hover-color="${cat.color}40">
           ${progressRingSVG(prog, 44, 4, cat.color)}
           <div style="flex:1">
@@ -895,8 +1037,20 @@
       activeCat.folders.forEach((folder, fi) => {
         const isOpen = activeFolder === fi;
         const items = filteredFolderItems(folder);
-        const doneCount = items.filter(item => checkedItems[itemKey(activeCat.id, fi, item.ii)]).length;
-        const foldProg = items.length === 0 ? 0 : (doneCount / items.length) * 100;
+
+        // Get custom items for this folder (filtered)
+        const folderCustomItems = getCustomItemsForFolder(activeCat.id, fi).filter(ci => {
+          if (filter !== "all" && ci.priority !== filter) return false;
+          if (searchQuery && !replacePlaceholders(ci.text).toLowerCase().includes(searchQuery.toLowerCase())) return false;
+          return true;
+        });
+
+        // Calculate progress including both regular and custom items
+        const totalItems = items.length + folderCustomItems.length;
+        let doneCount = items.filter(item => checkedItems[itemKey(activeCat.id, fi, item.ii)]).length;
+        doneCount += folderCustomItems.filter(ci => checkedItems[customItemKey(activeCat.id, fi, ci.id)]).length;
+
+        const foldProg = totalItems === 0 ? 0 : (doneCount / totalItems) * 100;
         const dotColor = foldProg === 100 ? "#34D399" : foldProg > 0 ? activeCat.color : "rgba(255,255,255,0.15)";
         const dotShadow = foldProg === 100 ? "box-shadow:0 0 8px rgba(52,211,153,0.5)" : "";
 
@@ -904,7 +1058,7 @@
         html += `<button class="folder-btn" data-action="toggle-folder" data-folder-idx="${fi}">
           <div class="dot" style="background:${dotColor};${dotShadow}"></div>
           <span class="folder-name"${isOpen ? ' style="color:var(--text-primary)"' : ''}>\uD83D\uDCC1 ${escAttr(replacePlaceholders(folder.name))}</span>
-          <span class="folder-count">${doneCount}/${items.length}</span>
+          <span class="folder-count">${doneCount}/${totalItems}</span>
           <div class="folder-prog"><div class="folder-prog-fill" style="width:${foldProg}%;background:${foldProg === 100 ? '#34D399' : activeCat.color}"></div></div>
           <span class="arrow">\u25BE</span>
         </button>`;
@@ -948,6 +1102,28 @@
           </div>`;
         });
 
+        // Custom checklist items (using already filtered folderCustomItems from above)
+        folderCustomItems.forEach(customItem => {
+          const customKey = customItemKey(activeCat.id, fi, customItem.id);
+          const isDone = checkedItems[customKey];
+          const pri = PRIORITY_COLORS[customItem.priority];
+          const customTplK = customTemplateKey(activeCat.id, fi, customItem.id);
+          const hasTplData = templateData[customTplK] && Object.keys(templateData[customTplK]).length > 0;
+
+          html += `<div class="check-item custom-item${isDone ? ' done' : ''}">
+            <input type="checkbox" ${isDone ? 'checked' : ''} data-action="toggle-check" data-check-key="${escAttr(customKey)}">
+            <span class="check-text${isDone ? ' done' : ''}">${escAttr(replacePlaceholders(customItem.text))}</span>
+            <button class="detail-btn" style="${hasTplData ? 'background:rgba(52,211,153,0.15);border-color:rgba(52,211,153,0.3);color:#6EE7B7' : ''}" data-action="open-custom-template" data-tpl-cat="${activeCat.id}" data-tpl-fi="${fi}" data-custom-id="${customItem.id}" title="Fill in details for this item">${hasTplData ? '\u2713 Details' : '+ Details'}</button>
+            <span class="priority-badge" style="background:${pri.dot}20;color:${pri.dot}">${pri.label}</span>
+            <button class="delete-custom-btn" data-action="delete-custom-item" data-cat="${activeCat.id}" data-fi="${fi}" data-custom-id="${customItem.id}" title="Delete this custom item">&times;</button>
+          </div>`;
+        });
+
+        // Add custom item button
+        html += `<button class="add-custom-item-btn" data-action="open-custom-item-modal" data-cat="${activeCat.id}" data-fi="${fi}">
+          <span class="add-icon">+</span> Add Custom Item
+        </button>`;
+
         html += `</div></div>`; // folder-body, folder-card
       });
     }
@@ -970,6 +1146,10 @@
       html += renderHelpModal();
     }
 
+    if (customItemModalOpen) {
+      html += renderCustomItemModal();
+    }
+
     document.getElementById("app").innerHTML = html;
 
     // Re-focus search input and restore cursor position
@@ -981,14 +1161,27 @@
   }
 
   function renderModal() {
-    const { catId, folderIdx, itemIdx, templateType } = modalOpen;
+    const { catId, folderIdx, itemIdx, templateType, isCustom, customItemId } = modalOpen;
     const tpl = TEMPLATES[templateType];
     if (!tpl) return '';
 
     const cat = getProcessedCategories().find(c => c.id === catId);
     const folder = cat ? cat.folders[folderIdx] : null;
-    const item = folder ? folder.items[itemIdx] : null;
-    const tplK = templateKey(catId, folderIdx, itemIdx);
+
+    let item = null;
+    let tplK = '';
+
+    if (isCustom && customItemId) {
+      // Custom item template
+      const folderCustomItems = getCustomItemsForFolder(catId, folderIdx);
+      item = folderCustomItems.find(ci => ci.id === customItemId);
+      tplK = customTemplateKey(catId, folderIdx, customItemId);
+    } else {
+      // Regular item template
+      item = folder ? folder.items[itemIdx] : null;
+      tplK = templateKey(catId, folderIdx, itemIdx);
+    }
+
     const savedData = templateData[tplK] || {};
 
     let html = `<div class="modal-overlay" data-action="close-modal-overlay">
@@ -1214,6 +1407,8 @@
             settingsModalOpen = false;
           } else if (helpModalOpen) {
             helpModalOpen = false;
+          } else if (customItemModalOpen) {
+            customItemModalOpen = null;
           } else {
             modalOpen = null;
           }
@@ -1248,6 +1443,44 @@
           saveData(STORAGE_KEYS.checked, checkedItems);
           render();
         }
+        break;
+      }
+      // Custom item actions
+      case "open-custom-item-modal": {
+        customItemModalOpen = {
+          catId: el.dataset.cat,
+          folderIdx: parseInt(el.dataset.fi, 10)
+        };
+        render();
+        break;
+      }
+      case "close-custom-item-modal": {
+        customItemModalOpen = null;
+        render();
+        break;
+      }
+      case "save-custom-item": {
+        doSaveCustomItem();
+        break;
+      }
+      case "delete-custom-item": {
+        const catId = el.dataset.cat;
+        const fi = parseInt(el.dataset.fi, 10);
+        const itemId = el.dataset.customId;
+        if (confirm("Delete this custom item? This cannot be undone.")) {
+          doDeleteCustomItem(catId, fi, itemId);
+        }
+        break;
+      }
+      case "open-custom-template": {
+        modalOpen = {
+          catId: el.dataset.tplCat,
+          folderIdx: parseInt(el.dataset.tplFi, 10),
+          customItemId: el.dataset.customId,
+          templateType: "custom_item",
+          isCustom: true
+        };
+        render();
         break;
       }
     }
@@ -1335,11 +1568,15 @@
 
   function doSaveTemplate() {
     if (!modalOpen) return;
-    const { catId, folderIdx, itemIdx, templateType } = modalOpen;
+    const { catId, folderIdx, itemIdx, templateType, isCustom, customItemId } = modalOpen;
     const tpl = TEMPLATES[templateType];
     if (!tpl) return;
 
-    const tplK = templateKey(catId, folderIdx, itemIdx);
+    // Determine the correct template key based on whether this is a custom item
+    const tplK = isCustom && customItemId
+      ? customTemplateKey(catId, folderIdx, customItemId)
+      : templateKey(catId, folderIdx, itemIdx);
+
     const data = {};
     tpl.sections.forEach(section => {
       section.fields.forEach(field => {
@@ -1360,14 +1597,25 @@
 
   function doExportTemplate() {
     if (!modalOpen) return;
-    const { catId, folderIdx, itemIdx, templateType } = modalOpen;
+    const { catId, folderIdx, itemIdx, templateType, isCustom, customItemId } = modalOpen;
     const tpl = TEMPLATES[templateType];
     if (!tpl) return;
 
     const cat = getProcessedCategories().find(c => c.id === catId);
     const folder = cat ? cat.folders[folderIdx] : null;
-    const item = folder ? folder.items[itemIdx] : null;
-    const tplK = templateKey(catId, folderIdx, itemIdx);
+
+    let item = null;
+    let tplK = '';
+
+    if (isCustom && customItemId) {
+      const folderCustomItems = getCustomItemsForFolder(catId, folderIdx);
+      item = folderCustomItems.find(ci => ci.id === customItemId);
+      tplK = customTemplateKey(catId, folderIdx, customItemId);
+    } else {
+      item = folder ? folder.items[itemIdx] : null;
+      tplK = templateKey(catId, folderIdx, itemIdx);
+    }
+
     const data = templateData[tplK] || {};
 
     let md = `# ${tpl.icon} ${replacePlaceholders(tpl.title)}\n\n`;
@@ -1414,14 +1662,25 @@
 
   function doExportPDF() {
     if (!modalOpen) return;
-    const { catId, folderIdx, itemIdx, templateType } = modalOpen;
+    const { catId, folderIdx, itemIdx, templateType, isCustom, customItemId } = modalOpen;
     const tpl = TEMPLATES[templateType];
     if (!tpl) return;
 
     const cat = getProcessedCategories().find(c => c.id === catId);
     const folder = cat ? cat.folders[folderIdx] : null;
-    const item = folder ? folder.items[itemIdx] : null;
-    const tplK = templateKey(catId, folderIdx, itemIdx);
+
+    let item = null;
+    let tplK = '';
+
+    if (isCustom && customItemId) {
+      const folderCustomItems = getCustomItemsForFolder(catId, folderIdx);
+      item = folderCustomItems.find(ci => ci.id === customItemId);
+      tplK = customTemplateKey(catId, folderIdx, customItemId);
+    } else {
+      item = folder ? folder.items[itemIdx] : null;
+      tplK = templateKey(catId, folderIdx, itemIdx);
+    }
+
     const data = templateData[tplK] || {};
 
     let html = `<!DOCTYPE html>
@@ -1598,8 +1857,9 @@
       checkedItems: checkedItems,
       templateData: templateData,
       settings: settings,
+      customItems: customItems,
       exportDate: new Date().toISOString(),
-      version: "1.3.0"
+      version: "1.5.0"
     };
     const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -1630,6 +1890,10 @@
           invalidateProcessedCategories();
           saveData(STORAGE_KEYS.settings, settings);
         }
+        if (data.customItems) {
+          customItems = data.customItems;
+          saveData(STORAGE_KEYS.customItems, customItems);
+        }
         alert('Data imported successfully!');
         render();
       } catch (err) {
@@ -1637,6 +1901,64 @@
       }
     };
     reader.readAsText(file);
+  }
+
+  function doSaveCustomItem() {
+    if (!customItemModalOpen) return;
+    const { catId, folderIdx } = customItemModalOpen;
+
+    const textEl = document.getElementById('custom-item-text');
+    const priorityEl = document.querySelector('input[name="custom-item-priority"]:checked');
+
+    if (!textEl || !textEl.value.trim()) {
+      alert('Please enter an item description.');
+      return;
+    }
+
+    const text = textEl.value.trim();
+    const priority = priorityEl ? priorityEl.value : 'important';
+    const itemId = generateCustomItemId();
+
+    const key = folderKey(catId, folderIdx);
+    if (!customItems[key]) {
+      customItems[key] = [];
+    }
+
+    customItems[key].push({
+      id: itemId,
+      text: text,
+      priority: priority,
+      createdAt: Date.now()
+    });
+
+    saveData(STORAGE_KEYS.customItems, customItems);
+    customItemModalOpen = null;
+    render();
+  }
+
+  function doDeleteCustomItem(catId, fi, itemId) {
+    const key = folderKey(catId, fi);
+    if (customItems[key]) {
+      customItems[key] = customItems[key].filter(item => item.id !== itemId);
+      if (customItems[key].length === 0) {
+        delete customItems[key];
+      }
+      saveData(STORAGE_KEYS.customItems, customItems);
+
+      // Also remove associated template data and checked status
+      const customTplK = customTemplateKey(catId, fi, itemId);
+      const customCheckK = customItemKey(catId, fi, itemId);
+      if (templateData[customTplK]) {
+        delete templateData[customTplK];
+        saveData(STORAGE_KEYS.templates, templateData);
+      }
+      if (checkedItems[customCheckK]) {
+        delete checkedItems[customCheckK];
+        saveData(STORAGE_KEYS.checked, checkedItems);
+      }
+
+      render();
+    }
   }
 
   // === DELEGATED EVENT LISTENERS (CSP-compliant, no inline handlers) ===

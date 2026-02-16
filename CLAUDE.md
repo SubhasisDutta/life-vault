@@ -83,7 +83,8 @@ const STORAGE_KEYS = {
   templates: "lifeorg-templates",     // { "tpl-catId-fi-ii": { fieldId: value } }
   settings: "lifeorg-settings",       // User settings object
   setupComplete: "lifeorg-setup-complete",  // boolean
-  theme: "lifeorg-theme"              // "light" | "dark"
+  theme: "lifeorg-theme",             // "light" | "dark"
+  customItems: "lifeorg-custom-items" // { "catId-folderIdx": [{ id, text, priority, createdAt }] }
 };
 
 // Settings structure
@@ -120,6 +121,15 @@ Items containing `{firstChild}` are automatically duplicated for each child:
 // Item: "{firstChild} birth certificate"
 // Becomes: "Alice birth certificate", "Bob birth certificate"
 ```
+
+Bank accounts from settings are also dynamically expanded into relevant folders:
+| Account Type | Folder | Item Format |
+|--------------|--------|-------------|
+| `checking` | Checking Accounts | `{name} — document account #, routing #, login` |
+| `savings`, `hys` | Savings Accounts | `{name} — balance & login` |
+| `foreign` | International Bank Accounts | `{name} — account #, branch, routing code` |
+| `investment` | Brokerage & Investment Accounts | `{name} — account #, login, beneficiaries` |
+| `credit` | Credit Cards | `{name} — card #, login, autopay status` |
 
 ### 3. Event Delegation Pattern
 
@@ -160,6 +170,33 @@ function render() {
   document.getElementById("app").innerHTML = html;
 }
 ```
+
+### 6. Custom Items System
+
+Users can add custom checklist items to any folder with their own priority and details:
+
+```javascript
+// Custom item structure stored per folder
+customItems = {
+  "catId-folderIdx": [
+    { id: "unique-id", text: "Custom item description", priority: "critical", createdAt: timestamp }
+  ]
+};
+
+// Helper functions for custom items
+function customItemKey(catId, fi, itemId) { return `custom-${catId}-${fi}-${itemId}`; }
+function customTemplateKey(catId, fi, itemId) { return `tpl-custom-${catId}-${fi}-${itemId}`; }
+function folderKey(catId, fi) { return `${catId}-${fi}`; }
+function getCustomItemsForFolder(catId, fi) { return customItems[folderKey(catId, fi)] || []; }
+```
+
+Custom items:
+- Are visually distinguished with a left border accent
+- Support all three priority levels (critical, important, optional)
+- Have their own details template (`custom_item` in TEMPLATES)
+- Can be deleted by the user
+- Are included in progress calculations and statistics
+- Are included in export/import functionality
 
 ## Theming System
 
@@ -228,6 +265,17 @@ function applyTheme(theme) {
 2. Add to `chrome.storage.local.get()` call in initialization
 3. Use `saveData(STORAGE_KEYS.yourKey, data)` to persist
 
+### Custom Items Feature
+
+Users can add custom checklist items via the "+ Add Custom Item" button at the bottom of each folder body. The system handles:
+
+1. **Adding custom items** - Opens `customItemModalOpen` modal with text input and priority selector
+2. **Saving custom items** - Stores in `customItems` object keyed by `folderKey(catId, fi)`
+3. **Displaying custom items** - Rendered after regular items with `.custom-item` class (left border accent)
+4. **Custom item details** - Uses `custom_item` template with fields for description, location, contacts, instructions
+5. **Deleting custom items** - Also removes associated template data and checked status
+6. **Progress tracking** - Custom items are included in all progress calculations
+
 ## UI Components
 
 ### Glassmorphism Elements
@@ -247,16 +295,28 @@ Key CSS classes for glass effect:
 | `.settings-btn` | Header action button |
 | `.theme-toggle` | Theme switch button |
 | `.filter-btn` | Priority filter pills |
+| `.add-custom-item-btn` | Dashed border button to add custom items |
+| `.delete-custom-btn` | Red × button to delete custom items |
+| `.priority-chip` | Priority selector chips in custom item modal |
 
 ### Modal Pattern
 
 ```javascript
-// Open modal
+// Open regular item modal
 modalOpen = { catId, folderIdx, itemIdx, templateType };
+render();
+
+// Open custom item modal (for details)
+modalOpen = { catId, folderIdx, customItemId, templateType: "custom_item", isCustom: true };
+render();
+
+// Open add custom item modal
+customItemModalOpen = { catId, folderIdx };
 render();
 
 // Close modal
 modalOpen = null;
+customItemModalOpen = null;
 render();
 ```
 
@@ -277,6 +337,12 @@ Items have three priority levels defined in `data.js` via `PRIORITY_COLORS`:
 - Test export/import JSON roundtrip
 - Test all template types save correctly
 - Test search functionality across categories
+- Test custom item creation with all priority levels
+- Test custom item details template saves correctly
+- Test custom item deletion removes associated data
+- Test custom items are included in progress calculations
+- Test custom items persist across sessions
+- Test custom items are included in export/import
 
 ## Performance Notes
 

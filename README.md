@@ -90,6 +90,34 @@ The app automatically generates checklist items based on your settings:
   - Checking accounts → "Checking Accounts" folder
   - Savings/HYS accounts → "Savings Accounts" folder
   - Foreign accounts → "International Bank Accounts" folder
+  - Investment accounts → "Brokerage & Investment Accounts" folder
+  - Credit cards → "Credit Cards" folder
+
+### Custom Checklist Items
+
+Add your own custom items to any folder:
+
+**How to add custom items:**
+1. Open any folder by clicking on it
+2. Scroll to the bottom and click **"+ Add Custom Item"**
+3. Enter your item description
+4. Select a priority level (Critical, Important, or Optional)
+5. Click **"Add Item"**
+
+**Custom item features:**
+- **Priority tagging** - Tag each item as Critical (red), Important (yellow), or Optional (blue)
+- **Details template** - Click "+ Details" to add detailed information including:
+  - Detailed description
+  - Location / where to find
+  - Account/reference numbers
+  - Contact information
+  - Instructions for your next of kin
+  - Deadlines and timelines
+  - Additional notes and links
+- **Visual distinction** - Custom items display with a colored left border
+- **Delete option** - Remove custom items anytime with the × button
+- **Progress tracking** - Custom items are included in all progress calculations
+- **Export/Import** - Custom items are saved in backups and can be restored
 
 ### 15 Color-Coded Categories
 
@@ -205,11 +233,11 @@ Each folder includes:
 
 ```
 life-vault/
-├── manifest.json      # Chrome extension configuration (v1.4.0)
+├── manifest.json      # Chrome extension configuration (v1.5.0)
 ├── app.html           # Main application HTML with Glassmorphism CSS
-├── app.js             # Core application logic (~1650 lines)
+├── app.js             # Core application logic (~1750 lines)
 ├── data.js            # Categories, folders, and checklist items
-├── templates.js       # 50+ detailed template definitions
+├── templates.js       # 50+ detailed template definitions (including custom_item)
 ├── background.js      # Extension background service worker
 ├── icons/             # Extension icons with "Life Vault" branding
 │   ├── icon16.svg     # 16px icon (LV initials)
@@ -227,11 +255,12 @@ All data is stored locally using Chrome's `chrome.storage.local` API:
 
 | Key | Purpose |
 |-----|---------|
-| `lifeorg-checked` | Checklist states |
-| `lifeorg-templates` | Template form data |
+| `lifeorg-checked` | Checklist states (regular and custom items) |
+| `lifeorg-templates` | Template form data (regular and custom items) |
 | `lifeorg-settings` | User settings (names, bank accounts, links) |
 | `lifeorg-setup-complete` | Setup wizard completion flag |
 | `lifeorg-theme` | Theme preference (light/dark) |
+| `lifeorg-custom-items` | User-created custom checklist items |
 
 **Data never leaves your device unless you export it.**
 
@@ -312,6 +341,7 @@ Add a new category object to the `CATEGORIES` array in `data.js`.
 
 | Version | Changes |
 |---------|---------|
+| **v1.5.0** | **Custom Checklist Items** - Users can now add their own custom items to any folder with priority tagging (Critical/Important/Optional) and a dedicated details template. Custom items are visually distinguished, can be deleted, and are included in progress tracking and export/import |
 | **v1.4.0** | **Glassmorphism UI redesign** with frosted glass effects, light/dark theme toggle, updated "Life Vault" branding on icons, CSS variables for theming, smooth transitions, and persistent theme preference |
 | **v1.3.0** | Built-in Help Guide with overview, all categories browser, curated video guides, tips section, and searchable content |
 | **v1.2.0** | Dynamic children items (auto-expand for multiple children), dynamic bank account items, foreign/international templates (bank, property, tax), foreign travel document support |

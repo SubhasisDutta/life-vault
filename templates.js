@@ -3,6 +3,27 @@
 // Uses placeholders: {primaryUser}, {partner}, {firstChild}, {children}, {familyName}
 
 const TEMPLATES = {
+  custom_item: {
+    title: "Custom Item Details",
+    icon: "\u{1F4DD}",
+    sections: [
+      { title: "Item Information", fields: [
+        { id: "description", label: "Detailed Description", type: "textarea", hint: "Provide a full description of this item" },
+        { id: "location", label: "Location / Where to Find", type: "input", hint: "Where is this item stored or located?" },
+        { id: "account_number", label: "Account/Reference Number (if applicable)", type: "input" },
+        { id: "contact_info", label: "Contact Information", type: "textarea", hint: "Phone numbers, emails, or people to contact" },
+      ]},
+      { title: "Instructions", fields: [
+        { id: "instructions", label: "Instructions for {partner}", type: "textarea", hint: "What should your next of kin do with this?" },
+        { id: "deadline", label: "Deadline / Timeline", type: "input", hint: "Any time-sensitive deadlines to be aware of?" },
+      ]},
+      { title: "Additional Notes", fields: [
+        { id: "notes", label: "Additional Notes", type: "textarea", hint: "Any other important information" },
+        { id: "links", label: "Relevant Links or URLs", type: "textarea", hint: "Website links, document locations, etc." },
+      ]}
+    ]
+  },
+
   birth_certificate: {
     title: "Birth Certificate Details",
     icon: "\u{1F4C4}",
