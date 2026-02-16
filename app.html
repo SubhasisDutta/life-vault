@@ -526,6 +526,13 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;backgrou
 .help-intro h3{font-size:16px;font-weight:700;color:var(--text-primary);margin-bottom:8px}
 .help-intro p{font-size:13px;color:var(--text-tertiary);line-height:1.6}
 
+/* === HELP RESOURCES === */
+.help-resource-category{transition:all 0.3s ease}
+.help-resource-category:hover{border-color:var(--border-medium) !important}
+.help-resource-video-card{transition:all 0.3s ease}
+.help-resource-video-card:hover{border-color:rgba(239,68,68,0.4) !important}
+.help-resource-article-card:hover{border-color:rgba(52,211,153,0.4) !important;transform:translateY(-1px)}
+
 /* === THEME SETTINGS SECTION === */
 .theme-section{
   background:var(--gradient-card);
@@ -603,6 +610,9 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;backgrou
 [data-theme="light"] .help-tip-title{color:#047857}
 [data-theme="light"] .help-video-card{background:linear-gradient(135deg,rgba(220,38,38,0.08),rgba(220,38,38,0.04))}
 [data-theme="light"] .help-video-link{color:#DC2626}
+[data-theme="light"] .help-resource-video-card{border-color:rgba(220,38,38,0.15) !important}
+[data-theme="light"] .help-resource-article-card{border-color:rgba(5,150,105,0.15) !important;background:linear-gradient(135deg,rgba(5,150,105,0.06),rgba(5,150,105,0.02)) !important}
+[data-theme="light"] .help-resource-category{background:rgba(255,255,255,0.8) !important}
 [data-theme="light"] .help-intro{background:linear-gradient(135deg,rgba(99,102,241,0.1),rgba(236,72,153,0.06))}
 [data-theme="light"] .quick-link{background:rgba(255,255,255,0.7);color:#4F46E5}
 [data-theme="light"] .footer p{color:#64748B}
