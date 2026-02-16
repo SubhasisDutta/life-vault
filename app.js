@@ -582,252 +582,312 @@
 
   // === RENDER HELP MODAL ===
   function renderHelpModal() {
-    const HELP_VIDEOS = [
-      {
-        title: "Estate Planning Basics",
-        desc: "Learn the fundamentals of estate planning from the ACTEC Foundation video library.",
-        url: "https://www.actec.org/resource-center/video/",
-        source: "ACTEC"
-      },
-      {
-        title: "Wills vs Trusts Explained",
-        desc: "Understand the key differences between wills and living trusts for avoiding probate.",
-        url: "https://www.ramseysolutions.com/retirement/what-is-a-living-trust",
-        source: "Ramsey Solutions"
-      },
-      {
-        title: "Term vs Whole Life Insurance",
-        desc: "A beginner-friendly explanation of the two main types of life insurance.",
-        url: "https://www.trustage.com/learn/life-insurance/term-vs-whole-life-insurance-video",
-        source: "TrustAge"
-      },
-      {
-        title: "401(k) vs IRA Explained",
-        desc: "Understand retirement account types and how to prioritize your savings.",
-        url: "https://www.fidelity.com/learning-center/smart-money/ira-vs-401k",
-        source: "Fidelity"
-      },
-      {
-        title: "Power of Attorney & Healthcare Directives",
-        desc: "Learn why POA and healthcare directives are critical estate planning documents.",
-        url: "https://www.actec.org/resource-center/",
-        source: "ACTEC"
-      },
-      {
-        title: "Beneficiary Designations",
-        desc: "Why beneficiary designations override your will and how to keep them updated.",
-        url: "https://www.wealth.com/resources/estate-planning/beneficiary-designation-explained/",
-        source: "Wealth.com"
-      },
-      {
-        title: "Digital Estate Planning",
-        desc: "How to organize digital accounts and password managers for your family.",
-        url: "https://blog.1password.com/get-started-digital-estate-planning/",
-        source: "1Password"
-      },
-      {
-        title: "COBRA Health Insurance",
-        desc: "Understand your rights to continue health coverage after job loss or death of spouse.",
-        url: "https://www.dol.gov/general/topic/health-plans/cobra",
-        source: "Dept. of Labor"
-      }
+    const sections = [
+      { id: "overview", label: "Overview", icon: "\uD83C\uDFE0" },
+      { id: "getting-started", label: "Getting Started", icon: "\uD83D\uDE80" },
+      { id: "categories", label: "Categories Guide", icon: "\uD83D\uDCC2" },
+      { id: "features", label: "Features", icon: "\u2728" },
+      { id: "tips", label: "Tips & Best Practices", icon: "\uD83D\uDCA1" },
+      { id: "faq", label: "FAQ", icon: "\u2753" }
     ];
 
     let html = `<div class="modal-overlay" data-action="close-modal-overlay">
-      <div class="modal help-modal" data-modal-inner="true">
+      <div class="modal help-modal" data-modal-inner="true" style="max-width:900px;max-height:85vh">
         <div class="modal-header">
-          <div class="modal-title">\uD83D\uDCD6 Help Guide</div>
+          <div class="modal-title">\u2753 Life Vault Help Guide</div>
           <button class="modal-close" data-action="close-help">&times;</button>
         </div>
-        <div class="modal-body">
+        <div class="help-content" style="display:flex;gap:20px;padding:20px;overflow:hidden;height:calc(85vh - 80px)">
 
-          <input class="help-search" type="text" placeholder="Search help topics..." value="${escAttr(helpSearchQuery)}" id="help-search-input">
+          <!-- Sidebar -->
+          <div class="help-sidebar" style="width:200px;flex-shrink:0;border-right:1px solid var(--border-subtle);padding-right:16px;overflow-y:auto">
+            <input class="tpl-input" type="text" id="help-search-input" placeholder="Search help..." value="${escAttr(helpSearchQuery)}" style="margin-bottom:16px;font-size:13px">
+            <div class="help-nav" style="display:flex;flex-direction:column;gap:4px">`;
 
-          <div class="help-nav">
-            <button class="help-nav-btn${helpActiveSection === 'overview' ? ' active' : ''}" data-action="help-set-section" data-section="overview">Overview</button>
-            <button class="help-nav-btn${helpActiveSection === 'categories' ? ' active' : ''}" data-action="help-set-section" data-section="categories">All Categories</button>
-            <button class="help-nav-btn${helpActiveSection === 'videos' ? ' active' : ''}" data-action="help-set-section" data-section="videos">Video Guides</button>
-            <button class="help-nav-btn${helpActiveSection === 'tips' ? ' active' : ''}" data-action="help-set-section" data-section="tips">Tips</button>
-          </div>`;
-
-    // Filter categories by search
-    const searchLower = helpSearchQuery.toLowerCase();
-    const filteredCategories = getProcessedCategories().filter(cat => {
-      if (!helpSearchQuery) return true;
-      if (cat.name.toLowerCase().includes(searchLower)) return true;
-      if (cat.description.toLowerCase().includes(searchLower)) return true;
-      return cat.folders.some(f =>
-        f.name.toLowerCase().includes(searchLower) ||
-        f.instructions.toLowerCase().includes(searchLower)
-      );
+    sections.forEach(section => {
+      const isActive = helpActiveSection === section.id;
+      html += `<button class="help-nav-item${isActive ? ' active' : ''}" data-action="help-set-section" data-section="${section.id}" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:none;background:${isActive ? 'var(--accent-primary)' : 'transparent'};color:${isActive ? 'white' : 'var(--text-secondary)'};border-radius:8px;cursor:pointer;font-size:13px;text-align:left;transition:all 0.2s">
+        <span>${section.icon}</span>
+        <span>${section.label}</span>
+      </button>`;
     });
 
-    if (helpActiveSection === 'overview') {
-      html += `
-        <div class="help-intro">
-          <h3>\uD83D\uDEE1\uFE0F Welcome to Family Life Vault</h3>
-          <p>This comprehensive system helps you organize everything your family needs in case of emergency.
-          With <strong>${getProcessedCategories().length} categories</strong> and <strong>${getStats().folders} folders</strong> covering
-          <strong>${getStats().total} actionable items</strong>, you can systematically document your entire digital legacy.</p>
-        </div>
-
-        <div class="help-section">
-          <div class="help-section-title">\uD83D\uDEA6 Getting Started</div>
-
-          <div class="help-tip">
-            <div class="help-tip-title">Step 1: Start with Critical Items</div>
-            <div class="help-tip-text">Use the "Critical" filter at the top to focus on the most important items first. These are marked in red and should be your first priority.</div>
+    html += `</div>
           </div>
 
-          <div class="help-tip">
-            <div class="help-tip-title">Step 2: Fill in Details</div>
-            <div class="help-tip-text">Don't just check boxes - click "+ Details" on each item to fill in the detailed template. This information is what your family actually needs.</div>
-          </div>
+          <!-- Main Content -->
+          <div class="help-main" style="flex:1;overflow-y:auto;padding-right:8px">`;
 
-          <div class="help-tip">
-            <div class="help-tip-title">Step 3: Export & Backup</div>
-            <div class="help-tip-text">Use "Export Data" regularly to create backups. Store the JSON file securely. You can also export individual items as PDF or Markdown.</div>
-          </div>
-
-          <div class="help-tip">
-            <div class="help-tip-title">Step 4: Share with Your NOK</div>
-            <div class="help-tip-text">Each folder has "Instructions for ${escAttr(settings.partnerName)} (Next of Kin)" - expandable sections with specific guidance for your family member.</div>
-          </div>
-        </div>
-
-        <div class="help-section">
-          <div class="help-section-title">\uD83C\uDFA5 Recommended Learning</div>`;
-
-      HELP_VIDEOS.slice(0, 4).forEach(video => {
-        html += `
-          <div class="help-video-card">
-            <div class="help-video-icon">\uD83C\uDFAC</div>
-            <div class="help-video-info">
-              <div class="help-video-title">${video.title}</div>
-              <div class="help-video-desc">${video.desc}</div>
-              <a href="${video.url}" target="_blank" class="help-video-link">\u25B6 Learn More (${video.source})</a>
-            </div>
-          </div>`;
-      });
-
-      html += `</div>`;
+    // Render content based on active section
+    switch (helpActiveSection) {
+      case "overview":
+        html += renderHelpOverview();
+        break;
+      case "getting-started":
+        html += renderHelpGettingStarted();
+        break;
+      case "categories":
+        html += renderHelpCategories();
+        break;
+      case "features":
+        html += renderHelpFeatures();
+        break;
+      case "tips":
+        html += renderHelpTips();
+        break;
+      case "faq":
+        html += renderHelpFAQ();
+        break;
+      default:
+        html += renderHelpOverview();
     }
 
-    if (helpActiveSection === 'categories') {
-      html += `<div class="help-section">
-        <div class="help-section-title">\uD83D\uDCC1 All ${filteredCategories.length} Categories</div>`;
-
-      filteredCategories.forEach(cat => {
-        const isExpanded = helpExpandedCategories[cat.id];
-        const folderCount = cat.folders.length;
-        const itemCount = cat.folders.reduce((a, f) => a + f.items.length, 0);
-
-        html += `
-          <div class="help-category${isExpanded ? ' open' : ''}">
-            <div class="help-category-header" data-action="help-toggle-category" data-cat-id="${cat.id}">
-              <div class="help-category-icon" style="background:${cat.color}20;border:1px solid ${cat.color}30">${cat.icon}</div>
-              <div class="help-category-info">
-                <div class="help-category-name">${escAttr(replacePlaceholders(cat.name))}</div>
-                <div class="help-category-desc">${escAttr(replacePlaceholders(cat.description))}</div>
-                <div class="help-category-meta">${folderCount} folders \u2022 ${itemCount} items</div>
-              </div>
-              <span class="help-category-arrow">\u25BE</span>
-            </div>
-            <div class="help-category-body">`;
-
-        cat.folders.forEach(folder => {
-          html += `
-              <div class="help-folder">
-                <div class="help-folder-name">\uD83D\uDCC2 ${escAttr(replacePlaceholders(folder.name))}</div>
-                <div class="help-folder-instructions">${escAttr(replacePlaceholders(folder.instructions))}</div>
-                <div class="help-folder-items">${folder.items.length} checklist items</div>
-              </div>`;
-        });
-
-        html += `</div></div>`;
-      });
-
-      html += `</div>`;
-    }
-
-    if (helpActiveSection === 'videos') {
-      html += `<div class="help-section">
-        <div class="help-section-title">\uD83C\uDFA5 Video Guides & Resources</div>
-        <p style="font-size:12px;color:#94A3B8;margin-bottom:16px">These curated resources explain key estate planning concepts in easy-to-understand terms.</p>`;
-
-      HELP_VIDEOS.forEach(video => {
-        html += `
-          <div class="help-video-card">
-            <div class="help-video-icon">\uD83C\uDFAC</div>
-            <div class="help-video-info">
-              <div class="help-video-title">${video.title}</div>
-              <div class="help-video-desc">${video.desc}</div>
-              <a href="${video.url}" target="_blank" class="help-video-link">\u25B6 Learn More (${video.source})</a>
-            </div>
-          </div>`;
-      });
-
-      html += `
-        <div class="help-tip" style="margin-top:16px">
-          <div class="help-tip-title">\uD83D\uDCA1 More Resources</div>
-          <div class="help-tip-text">
-            <strong>Khan Academy</strong> - Free personal finance courses<br>
-            <strong>Nolo.com</strong> - Legal self-help guides<br>
-            <strong>Consumer.gov</strong> - Government consumer resources<br>
-            <strong>SSA.gov</strong> - Social Security Administration guides
-          </div>
+    html += `</div>
         </div>
-      </div>`;
-    }
+      </div>
+    </div>`;
 
-    if (helpActiveSection === 'tips') {
-      html += `<div class="help-section">
-        <div class="help-section-title">\uD83D\uDCA1 Tips for Success</div>
-
-        <div class="help-tip">
-          <div class="help-tip-title">\uD83D\uDEA8 Start with the Essentials</div>
-          <div class="help-tip-text">Focus first on: Will, Healthcare Directive, Power of Attorney, Life Insurance beneficiaries, and Account access credentials. These are the most critical items if something happens.</div>
-        </div>
-
-        <div class="help-tip">
-          <div class="help-tip-title">\uD83D\uDCCA Track Your Progress</div>
-          <div class="help-tip-text">The progress rings show your completion percentage. Aim to get "Critical" items to 100% first, then work on "Important" items.</div>
-        </div>
-
-        <div class="help-tip">
-          <div class="help-tip-title">\uD83D\uDCC5 Schedule Annual Reviews</div>
-          <div class="help-tip-text">Set a yearly reminder to review and update your vault. Check for expired documents, changed accounts, new assets, and updated beneficiaries.</div>
-        </div>
-
-        <div class="help-tip">
-          <div class="help-tip-title">\uD83D\uDD10 Keep Secrets Safe</div>
-          <div class="help-tip-text">Store your password manager master password in a sealed envelope in a fireproof safe. This is the key to everything. Never email or text sensitive credentials.</div>
-        </div>
-
-        <div class="help-tip">
-          <div class="help-tip-title">\uD83D\uDCDD Fill Out the Details</div>
-          <div class="help-tip-text">The real value is in the details. Clicking "checkbox" only tracks what you've done - clicking "+ Details" captures the actual information your family needs.</div>
-        </div>
-
-        <div class="help-tip">
-          <div class="help-tip-title">\uD83D\uDC65 Include Your Partner</div>
-          <div class="help-tip-text">Walk through this vault with ${escAttr(settings.partnerName)}. Make sure they know where it is, how to access it, and what to do with the information.</div>
-        </div>
-
-        <div class="help-tip">
-          <div class="help-tip-title">\u26A0\uFE0F Beneficiaries Override Wills</div>
-          <div class="help-tip-text">The beneficiary you name on bank accounts, retirement accounts, and insurance policies will receive those assets regardless of what your will says. Review ALL beneficiary designations!</div>
-        </div>
-
-        <div class="help-tip">
-          <div class="help-tip-title">\uD83C\uDFE0 Property in Trust = No Probate</div>
-          <div class="help-tip-text">Transferring your home into a living trust avoids probate court. This saves time, money, and keeps the transfer private. Consult an estate attorney.</div>
-        </div>
-      </div>`;
-    }
-
-    html += `</div></div></div>`;
     return html;
+  }
+
+  function renderHelpOverview() {
+    return `
+      <div class="help-section">
+        <h2 style="font-size:20px;font-weight:700;color:var(--text-primary);margin-bottom:16px">\uD83D\uDEE1\uFE0F Welcome to Life Vault</h2>
+        <p style="color:var(--text-secondary);line-height:1.7;margin-bottom:20px">
+          Life Vault is your comprehensive digital legacy organizer. It helps you document, organize, and share critical information that your loved ones would need in case of emergency or if you're unavailable.
+        </p>
+
+        <div style="background:var(--bg-glass);border:1px solid var(--border-subtle);border-radius:12px;padding:20px;margin-bottom:20px">
+          <h3 style="font-size:16px;font-weight:600;color:var(--accent-primary);margin-bottom:12px">\uD83C\uDFAF What Life Vault Helps You Do</h3>
+          <ul style="color:var(--text-secondary);line-height:1.8;padding-left:20px">
+            <li>Organize important documents across <strong>${getProcessedCategories().length} categories</strong></li>
+            <li>Track your progress with visual indicators</li>
+            <li>Store detailed information for each item</li>
+            <li>Provide clear instructions for your next of kin</li>
+            <li>Export data for backup or sharing</li>
+          </ul>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px">
+          <div style="background:linear-gradient(135deg,#6366F120,transparent);border:1px solid #6366F130;border-radius:12px;padding:16px;text-align:center">
+            <div style="font-size:32px;margin-bottom:8px">\uD83D\uDCC2</div>
+            <div style="font-size:24px;font-weight:700;color:#6366F1">${getProcessedCategories().length}</div>
+            <div style="font-size:12px;color:var(--text-secondary)">Categories</div>
+          </div>
+          <div style="background:linear-gradient(135deg,#A78BFA20,transparent);border:1px solid #A78BFA30;border-radius:12px;padding:16px;text-align:center">
+            <div style="font-size:32px;margin-bottom:8px">\uD83D\uDCC1</div>
+            <div style="font-size:24px;font-weight:700;color:#A78BFA">${getStats().folders}</div>
+            <div style="font-size:12px;color:var(--text-secondary)">Folders</div>
+          </div>
+          <div style="background:linear-gradient(135deg,#F472B620,transparent);border:1px solid #F472B630;border-radius:12px;padding:16px;text-align:center">
+            <div style="font-size:32px;margin-bottom:8px">\u2705</div>
+            <div style="font-size:24px;font-weight:700;color:#F472B6">${getStats().total}</div>
+            <div style="font-size:12px;color:var(--text-secondary)">Items to Complete</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderHelpGettingStarted() {
+    return `
+      <div class="help-section">
+        <h2 style="font-size:20px;font-weight:700;color:var(--text-primary);margin-bottom:16px">\uD83D\uDE80 Getting Started</h2>
+
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;gap:16px;align-items:flex-start;background:var(--bg-glass);border:1px solid var(--border-subtle);border-radius:12px;padding:16px">
+            <div style="width:40px;height:40px;border-radius:50%;background:#6366F1;color:white;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0">1</div>
+            <div>
+              <h4 style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:4px">Choose a Category</h4>
+              <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">Click on any category in the sidebar to view its folders and items. Each category covers a different aspect of your digital legacy.</p>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:16px;align-items:flex-start;background:var(--bg-glass);border:1px solid var(--border-subtle);border-radius:12px;padding:16px">
+            <div style="width:40px;height:40px;border-radius:50%;background:#A78BFA;color:white;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0">2</div>
+            <div>
+              <h4 style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:4px">Open Folders</h4>
+              <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">Click on a folder to expand it and see all the items. Each folder contains related documents or tasks.</p>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:16px;align-items:flex-start;background:var(--bg-glass);border:1px solid var(--border-subtle);border-radius:12px;padding:16px">
+            <div style="width:40px;height:40px;border-radius:50%;background:#F472B6;color:white;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0">3</div>
+            <div>
+              <h4 style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:4px">Fill in Details</h4>
+              <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">Click "+ Details" on any item to open a form where you can add specific information like account numbers, locations, or instructions.</p>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:16px;align-items:flex-start;background:var(--bg-glass);border:1px solid var(--border-subtle);border-radius:12px;padding:16px">
+            <div style="width:40px;height:40px;border-radius:50%;background:#34D399;color:white;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0">4</div>
+            <div>
+              <h4 style="font-size:15px;font-weight:600;color:var(--text-primary);margin-bottom:4px">Mark as Complete</h4>
+              <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">Check off items as you complete them. Your progress is saved automatically and shown in the progress rings.</p>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderHelpCategories() {
+    const cats = getProcessedCategories();
+    const searchLower = helpSearchQuery.toLowerCase();
+
+    return `
+      <div class="help-section">
+        <h2 style="font-size:20px;font-weight:700;color:var(--text-primary);margin-bottom:16px">\uD83D\uDCC2 Categories Guide</h2>
+        <p style="color:var(--text-secondary);line-height:1.6;margin-bottom:20px">
+          Life Vault organizes your information into ${cats.length} categories. Click on any category below to learn more about what it covers.
+        </p>
+
+        <div style="display:flex;flex-direction:column;gap:12px">
+          ${cats.filter(cat => {
+            if (!helpSearchQuery) return true;
+            return replacePlaceholders(cat.name).toLowerCase().includes(searchLower) ||
+                   replacePlaceholders(cat.description).toLowerCase().includes(searchLower);
+          }).map(cat => {
+            const isExpanded = helpExpandedCategories[cat.id];
+            const prog = getCatProgress(cat);
+            return `
+              <div id="help-cat-${cat.id}" style="background:var(--bg-glass);border:1px solid ${cat.color}30;border-radius:12px;overflow:hidden">
+                <button data-action="help-toggle-category" data-cat-id="${cat.id}" style="width:100%;display:flex;align-items:center;gap:12px;padding:16px;border:none;background:transparent;cursor:pointer;text-align:left">
+                  <div style="width:44px;height:44px;border-radius:10px;background:${cat.color}20;display:flex;align-items:center;justify-content:center;font-size:22px">${cat.icon}</div>
+                  <div style="flex:1">
+                    <div style="font-size:15px;font-weight:600;color:var(--text-primary)">${escAttr(replacePlaceholders(cat.name))}</div>
+                    <div style="font-size:12px;color:var(--text-secondary)">${cat.folders.length} folders &bull; ${Math.round(prog)}% complete</div>
+                  </div>
+                  <span style="color:var(--text-secondary);font-size:16px">${isExpanded ? '\u25B2' : '\u25BC'}</span>
+                </button>
+                ${isExpanded ? `
+                  <div style="padding:0 16px 16px 16px;border-top:1px solid var(--border-subtle)">
+                    <p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin:16px 0">${escAttr(replacePlaceholders(cat.description))}</p>
+                    <div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:8px">Folders in this category:</div>
+                    <ul style="font-size:13px;color:var(--text-secondary);padding-left:20px;line-height:1.8">
+                      ${cat.folders.map(f => `<li>\uD83D\uDCC1 ${escAttr(replacePlaceholders(f.name))} (${f.items.length} items)</li>`).join('')}
+                    </ul>
+                  </div>
+                ` : ''}
+              </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+  }
+
+  function renderHelpFeatures() {
+    return `
+      <div class="help-section">
+        <h2 style="font-size:20px;font-weight:700;color:var(--text-primary);margin-bottom:16px">\u2728 Features</h2>
+
+        <div style="display:grid;gap:16px">
+          <div style="background:var(--bg-glass);border:1px solid var(--border-subtle);border-radius:12px;padding:20px">
+            <h4 style="font-size:15px;font-weight:600;color:var(--accent-primary);margin-bottom:8px">\uD83D\uDCCA Progress Tracking</h4>
+            <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">Visual progress rings show your completion status at a glance. Track progress by category, folder, or overall.</p>
+          </div>
+
+          <div style="background:var(--bg-glass);border:1px solid var(--border-subtle);border-radius:12px;padding:20px">
+            <h4 style="font-size:15px;font-weight:600;color:#EF4444;margin-bottom:8px">\uD83D\uDEA8 Priority Levels</h4>
+            <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">Items are color-coded by priority: <span style="color:#EF4444;font-weight:600">CRITICAL</span>, <span style="color:#FBBF24;font-weight:600">IMPORTANT</span>, and <span style="color:#3B82F6;font-weight:600">OPTIONAL</span>. Use the filter to focus on what matters most.</p>
+          </div>
+
+          <div style="background:var(--bg-glass);border:1px solid var(--border-subtle);border-radius:12px;padding:20px">
+            <h4 style="font-size:15px;font-weight:600;color:#A78BFA;margin-bottom:8px">\u2795 Custom Items</h4>
+            <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">Add your own items to any folder using the "+ Add Custom Item" button. Set your own priority and fill in details just like built-in items.</p>
+          </div>
+
+          <div style="background:var(--bg-glass);border:1px solid var(--border-subtle);border-radius:12px;padding:20px">
+            <h4 style="font-size:15px;font-weight:600;color:#F472B6;margin-bottom:8px">\uD83D\uDC65 Next of Kin Instructions</h4>
+            <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">Each folder includes special instructions for ${escAttr(settings.partnerName)}. Click the "Instructions for Next of Kin" button to view or share these.</p>
+          </div>
+
+          <div style="background:var(--bg-glass);border:1px solid var(--border-subtle);border-radius:12px;padding:20px">
+            <h4 style="font-size:15px;font-weight:600;color:#34D399;margin-bottom:8px">\uD83D\uDCE4 Export Options</h4>
+            <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">Export individual items as Markdown or PDF, or export all your data as JSON for backup. Find export options in Settings.</p>
+          </div>
+
+          <div style="background:var(--bg-glass);border:1px solid var(--border-subtle);border-radius:12px;padding:20px">
+            <h4 style="font-size:15px;font-weight:600;color:#FBBF24;margin-bottom:8px">\uD83C\uDF19 Theme Options</h4>
+            <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">Switch between dark and light mode using the theme toggle in the header or in Settings.</p>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderHelpTips() {
+    return `
+      <div class="help-section">
+        <h2 style="font-size:20px;font-weight:700;color:var(--text-primary);margin-bottom:16px">\uD83D\uDCA1 Tips & Best Practices</h2>
+
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div style="background:linear-gradient(135deg,#34D39920,transparent);border:1px solid #34D39940;border-radius:12px;padding:20px">
+            <h4 style="font-size:15px;font-weight:600;color:#34D399;margin-bottom:8px">\u2705 Start with Critical Items</h4>
+            <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">Use the "critical" filter to focus on the most important items first. These are things your family would need immediate access to.</p>
+          </div>
+
+          <div style="background:linear-gradient(135deg,#6366F120,transparent);border:1px solid #6366F140;border-radius:12px;padding:20px">
+            <h4 style="font-size:15px;font-weight:600;color:#6366F1;margin-bottom:8px">\uD83D\uDCDD Be Specific in Details</h4>
+            <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">When filling in item details, include specific information like account numbers, locations, contact information, and step-by-step instructions.</p>
+          </div>
+
+          <div style="background:linear-gradient(135deg,#F472B620,transparent);border:1px solid #F472B640;border-radius:12px;padding:20px">
+            <h4 style="font-size:15px;font-weight:600;color:#F472B6;margin-bottom:8px">\uD83D\uDCE6 Regular Backups</h4>
+            <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">Export your data regularly from Settings. Store the backup in a secure location that ${escAttr(settings.partnerName)} can access.</p>
+          </div>
+
+          <div style="background:linear-gradient(135deg,#FBBF2420,transparent);border:1px solid #FBBF2440;border-radius:12px;padding:20px">
+            <h4 style="font-size:15px;font-weight:600;color:#FBBF24;margin-bottom:8px">\uD83D\uDD04 Keep It Updated</h4>
+            <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">Review and update your vault periodically, especially after major life changes like moving, changing jobs, or opening new accounts.</p>
+          </div>
+
+          <div style="background:linear-gradient(135deg,#A78BFA20,transparent);border:1px solid #A78BFA40;border-radius:12px;padding:20px">
+            <h4 style="font-size:15px;font-weight:600;color:#A78BFA;margin-bottom:8px">\uD83D\uDD17 Use Quick Links</h4>
+            <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">Add frequently used resources like Google Drive folders or Notion pages to Quick Links in Settings for easy access.</p>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderHelpFAQ() {
+    const faqs = [
+      {
+        q: "Where is my data stored?",
+        a: "All your data is stored locally in your browser's Chrome storage. It never leaves your device unless you explicitly export it."
+      },
+      {
+        q: "Can I use Life Vault on multiple devices?",
+        a: "Currently, Life Vault stores data locally per browser. To use on another device, export your data and import it on the new device."
+      },
+      {
+        q: "How do I share information with my partner?",
+        a: "You can export individual items as PDF or Markdown files, or export all data as JSON. Share these files securely with your partner."
+      },
+      {
+        q: "Can I add my own items to a folder?",
+        a: "Yes! Click the '+ Add Custom Item' button at the bottom of any folder to add your own items with custom priorities."
+      },
+      {
+        q: "What happens if I reset my progress?",
+        a: "The Reset button only clears your checkmarks. Your filled-in details and custom items are preserved."
+      },
+      {
+        q: "How do I change my family information?",
+        a: "Go to Settings (gear icon in the header) to update family names, children, bank accounts, and other personalized information."
+      }
+    ];
+
+    return `
+      <div class="help-section">
+        <h2 style="font-size:20px;font-weight:700;color:var(--text-primary);margin-bottom:16px">\u2753 Frequently Asked Questions</h2>
+
+        <div style="display:flex;flex-direction:column;gap:12px">
+          ${faqs.map(faq => `
+            <div style="background:var(--bg-glass);border:1px solid var(--border-subtle);border-radius:12px;padding:16px">
+              <h4 style="font-size:14px;font-weight:600;color:var(--text-primary);margin-bottom:8px">${escAttr(faq.q)}</h4>
+              <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">${escAttr(faq.a)}</p>
+            </div>
+          `).join('')}
+        </div>
+      </div>`;
   }
 
   // === RENDER CUSTOM ITEM MODAL ===
@@ -906,18 +966,18 @@
     // HEADER
     html += `<div class="header"><div class="header-inner">`;
     html += `<div class="logo-row">
-      <div class="logo">\uD83D\uDEE1\uFE0F</div>
-      <div><div class="title">${escAttr(settings.familyName)} Life Vault</div>
-      <div class="subtitle">Everything ${escAttr(settings.partnerName)} needs, in one place. Built for your family.</div></div>
-      <div style="margin-left:auto;display:flex;gap:8px">
-        <button class="theme-toggle" data-action="toggle-theme" title="Switch to ${getThemeLabel()}">
-          <span class="theme-toggle-icon">${getThemeIcon()}</span>
-          <span>${getThemeLabel()}</span>
-        </button>
-        <button class="settings-btn" data-action="open-help">\u2753 Help</button>
-        <button class="settings-btn" data-action="open-settings">\u2699\uFE0F Settings</button>
-      </div>
-    </div>`;
+        <div class="logo">\uD83D\uDEE1\uFE0F</div>
+        <div><div class="title">${escAttr(settings.familyName)} Life Vault</div>
+          <div class="subtitle">Everything ${escAttr(settings.partnerName)} needs, in one place. Built for your family.</div></div>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <button class="theme-toggle" data-action="toggle-theme" title="Switch to ${getThemeLabel()}">
+            <span class="theme-toggle-icon">${getThemeIcon()}</span>
+            <span>${getThemeLabel()}</span>
+          </button>
+          <button class="settings-btn" data-action="open-help">\u2753 Help</button>
+          <button class="settings-btn" data-action="open-settings">\u2699\uFE0F Settings</button>
+        </div>
+      </div>`;
 
     // Stats bar
     html += `<div class="stats-bar">`;
@@ -936,8 +996,8 @@
     html += `</div>`;
 
     html += `<div class="action-bar">
-      <button class="reset-btn" data-action="reset-all">Reset</button>
-    </div>`;
+          <button class="reset-btn" data-action="reset-all">Reset</button>
+        </div>`;
     html += `</div>`; // stats-bar
 
     // Filters
@@ -965,7 +1025,7 @@
       html += `<button class="cat-btn${isActive ? ' active' : ''}" style="${isActive ? 'background:linear-gradient(90deg,' + cat.color + '20,transparent);border-color:' + cat.color + '40' : ''}" data-action="select-category" data-cat-id="${cat.id}">
         <div class="cat-icon" style="background:${cat.color}20;border:1px solid ${cat.color}30">${cat.icon}</div>
         <div style="flex:1;min-width:0">
-          <div class="cat-name"${isActive ? ' style="color:var(--text-primary)"' : ''}>${escAttr(replacePlaceholders(cat.name))}</div>
+          <div class="cat-name" ${isActive ? ' style="color:var(--text-primary)"' : ''}>${escAttr(replacePlaceholders(cat.name))}</div>
           <div class="cat-prog-bar"><div class="cat-prog-fill" style="width:${prog}%;background:${cat.color}"></div></div>
         </div>
         <span class="cat-pct" style="color:${cat.color}">${Math.round(prog)}%</span>
@@ -1026,7 +1086,10 @@
         <div style="display:flex;align-items:center;gap:10px">
           <div style="width:48px;height:48px;border-radius:12px;background:${activeCat.color}25;display:flex;align-items:center;justify-content:center;font-size:24px;border:2px solid ${activeCat.color}40">${activeCat.icon}</div>
           <div style="flex:1">
-            <h2 style="font-size:18px;font-weight:800;color:var(--text-primary);margin:0">${escAttr(replacePlaceholders(activeCat.name))}</h2>
+            <div style="display:flex;align-items:center;gap:8px">
+              <h2 style="font-size:18px;font-weight:800;color:var(--text-primary);margin:0">${escAttr(replacePlaceholders(activeCat.name))}</h2>
+              <button class="context-help-btn" data-action="open-context-help" data-context-type="category" data-context-id="${activeCat.id}" style="font-size:12px;padding:4px 8px;background:${activeCat.color}20;color:${activeCat.color};border:none;border-radius:6px;cursor:pointer" title="Watch Video Guide">\uD83C\uDFA5 Guide</button>
+            </div>
             <p style="font-size:12px;color:#94A3B8;margin:4px 0 0">${escAttr(replacePlaceholders(activeCat.description))}</p>
           </div>
           ${progressRingSVG(prog, 56, 5, activeCat.color)}
@@ -1067,7 +1130,12 @@
 
         // Instructions
         html += `<div class="inst-box" style="background:${activeCat.color}10;border:1px solid ${activeCat.color}20">
-          <div class="inst-label" style="color:${activeCat.color}">Instructions for You</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <div class="inst-label" style="color:${activeCat.color};margin-bottom:0">Instructions for You</div>
+            <button class="context-help-btn" data-action="open-context-help" data-context-type="category" data-context-id="${activeCat.id}" style="font-size:11px;padding:2px 8px;background:${activeCat.color}20;color:${activeCat.color};border:none;border-radius:12px;cursor:pointer;display:flex;align-items:center;gap:4px">
+              \uD83C\uDFA5 Watch Guide
+            </button>
+          </div>
           <div class="inst-text">${escAttr(replacePlaceholders(folder.instructions))}</div>
         </div>`;
 
@@ -1202,7 +1270,7 @@
         const val = savedData[field.id] || '';
         const escapedVal = escAttr(val);
         html += `<div class="tpl-field">
-          <label class="tpl-label">${escAttr(replacePlaceholders(field.label))}</label>`;
+            <label class="tpl-label">${escAttr(replacePlaceholders(field.label))}</label>`;
         if (field.type === "textarea") {
           html += `<textarea class="tpl-textarea" id="field-${field.id}" placeholder="Enter details...">${val.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>`;
         } else {
@@ -1217,11 +1285,11 @@
     });
 
     html += `<div style="display:flex;gap:8px;margin-top:20px;flex-wrap:wrap">
-        <button class="save-btn" data-action="save-template">Save Details</button>
-        <button class="export-btn" data-action="export-template">Export as Markdown</button>
-        <button class="export-btn" data-action="export-pdf" style="background:rgba(99,102,241,0.15);border-color:rgba(99,102,241,0.3);color:#A5B4FC">Export as PDF</button>
-      </div>
-    </div></div></div>`;
+          <button class="save-btn" data-action="save-template">Save Details</button>
+          <button class="export-btn" data-action="export-template">Export as Markdown</button>
+          <button class="export-btn" data-action="export-pdf" style="background:rgba(99,102,241,0.15);border-color:rgba(99,102,241,0.3);color:#A5B4FC">Export as PDF</button>
+        </div>
+      </div></div></div>`;
 
     return html;
   }
@@ -1336,6 +1404,30 @@
       case "help-set-section": {
         helpActiveSection = el.dataset.section;
         render();
+        break;
+      }
+      case "open-context-help": {
+        const catId = el.dataset.contextId;
+        helpModalOpen = true;
+        helpActiveSection = "categories";
+        helpExpandedCategories[catId] = true;
+        helpSearchQuery = ""; // Clear search to ensure category is visible
+        render();
+
+        // Scroll to category after render
+        setTimeout(() => {
+          const catEl = document.getElementById(`help-cat-${catId}`);
+          if (catEl) {
+            catEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            // Flash effect
+            catEl.style.transition = 'background 0.3s';
+            const originalBg = catEl.style.background;
+            catEl.style.background = 'rgba(255, 255, 0, 0.1)';
+            setTimeout(() => {
+              catEl.style.background = originalBg;
+            }, 1000);
+          }
+        }, 100);
         break;
       }
       case "help-toggle-category": {
@@ -1791,7 +1883,7 @@
   </style>
 </head>
 <body>
-  <button class="print-btn no-print">🖨️ Print / Save as PDF</button>
+  <button class="print-btn no-print">\uD83D\uDDA8\uFE0F Print / Save as PDF</button>
 
   <div class="header">
     <div class="title">${tpl.icon} ${replacePlaceholders(tpl.title)}</div>
@@ -1833,13 +1925,13 @@
     });
 
     html += `<div class="footer">
-    Exported from <strong>${settings.familyName} Life Vault</strong> &bull; ${new Date().toLocaleDateString()}
-  </div>
-  <script>
-    document.querySelector('.print-btn').addEventListener('click', function() {
-      window.print();
-    });
-  </script>
+      Exported from <strong>${settings.familyName} Life Vault</strong> &bull; ${new Date().toLocaleDateString()}
+    </div>
+    <script>
+      document.querySelector('.print-btn').addEventListener('click', function() {
+        window.print();
+      });
+    </script>
 </body>
 </html>`;
 
@@ -1874,7 +1966,7 @@
 
   function doImportData(file) {
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
       try {
         const data = JSON.parse(e.target.result);
         if (data.checkedItems) {

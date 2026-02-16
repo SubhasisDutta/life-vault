@@ -1097,6 +1097,117 @@
     });
   });
 
+  // =====================================================
+  // 19. HELP MODAL
+  // =====================================================
+
+  describe("Help Modal: open and close", function () {
+    it("opens help modal with default state", function () {
+      API.reset();
+      API.openHelp();
+      const state = API.getHelpState();
+      assert.ok(state.helpModalOpen, "Help modal should be open");
+      assert.equal(state.helpActiveSection, "overview", "Default section should be overview");
+      assert.equal(state.helpSearchQuery, "", "Search query should be empty");
+      assert.deepEqual(state.helpExpandedCategories, {}, "No categories should be expanded");
+    });
+    it("closes help modal", function () {
+      API.reset();
+      API.openHelp();
+      API.closeHelp();
+      const state = API.getHelpState();
+      assert.notOk(state.helpModalOpen, "Help modal should be closed");
+    });
+  });
+
+  describe("Help Modal: section navigation", function () {
+    beforeEach();
+    it("changes active section to getting-started", function () {
+      API.openHelp();
+      API.setHelpSection("getting-started");
+      assert.equal(API.getHelpState().helpActiveSection, "getting-started");
+    });
+    it("changes active section to categories", function () {
+      API.openHelp();
+      API.setHelpSection("categories");
+      assert.equal(API.getHelpState().helpActiveSection, "categories");
+    });
+    it("changes active section to features", function () {
+      API.openHelp();
+      API.setHelpSection("features");
+      assert.equal(API.getHelpState().helpActiveSection, "features");
+    });
+    it("changes active section to tips", function () {
+      API.openHelp();
+      API.setHelpSection("tips");
+      assert.equal(API.getHelpState().helpActiveSection, "tips");
+    });
+    it("changes active section to faq", function () {
+      API.openHelp();
+      API.setHelpSection("faq");
+      assert.equal(API.getHelpState().helpActiveSection, "faq");
+    });
+  });
+
+  describe("Help Modal: category expansion", function () {
+    beforeEach();
+    it("toggles category expansion on", function () {
+      API.openHelp();
+      API.toggleHelpCategory("identity");
+      assert.ok(API.getHelpState().helpExpandedCategories["identity"], "Category should be expanded");
+    });
+    it("toggles category expansion off", function () {
+      API.openHelp();
+      API.toggleHelpCategory("identity");
+      API.toggleHelpCategory("identity");
+      assert.notOk(API.getHelpState().helpExpandedCategories["identity"], "Category should be collapsed");
+    });
+    it("expands multiple categories independently", function () {
+      API.openHelp();
+      API.toggleHelpCategory("identity");
+      API.toggleHelpCategory("financial");
+      API.toggleHelpCategory("legal");
+      const state = API.getHelpState();
+      assert.ok(state.helpExpandedCategories["identity"]);
+      assert.ok(state.helpExpandedCategories["financial"]);
+      assert.ok(state.helpExpandedCategories["legal"]);
+    });
+  });
+
+  describe("Help Modal: search functionality", function () {
+    beforeEach();
+    it("sets search query", function () {
+      API.openHelp();
+      API.setHelpSearchQuery("passport");
+      assert.equal(API.getHelpState().helpSearchQuery, "passport");
+    });
+    it("clears search query", function () {
+      API.openHelp();
+      API.setHelpSearchQuery("passport");
+      API.setHelpSearchQuery("");
+      assert.equal(API.getHelpState().helpSearchQuery, "");
+    });
+  });
+
+  describe("Help Modal: state persistence across sections", function () {
+    beforeEach();
+    it("maintains search query when changing sections", function () {
+      API.openHelp();
+      API.setHelpSearchQuery("test");
+      API.setHelpSection("categories");
+      assert.equal(API.getHelpState().helpSearchQuery, "test");
+      assert.equal(API.getHelpState().helpActiveSection, "categories");
+    });
+    it("maintains expanded categories when changing sections", function () {
+      API.openHelp();
+      API.setHelpSection("categories");
+      API.toggleHelpCategory("identity");
+      API.setHelpSection("features");
+      API.setHelpSection("categories");
+      assert.ok(API.getHelpState().helpExpandedCategories["identity"], "Category should remain expanded");
+    });
+  });
+
   // Render results after all tests
   setTimeout(function () {
     renderTestResults();

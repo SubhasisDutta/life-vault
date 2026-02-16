@@ -497,6 +497,39 @@
     saveTemplateData: function (tplKey, data) {
       templateData[tplKey] = data;
       saveData(STORAGE_KEYS.templates, templateData);
+    },
+
+    // Help modal functions
+    openHelp: function () {
+      helpModalOpen = true;
+      helpActiveSection = "overview";
+      helpSearchQuery = "";
+      helpExpandedCategories = {};
+    },
+
+    closeHelp: function () {
+      helpModalOpen = false;
+    },
+
+    setHelpSection: function (section) {
+      helpActiveSection = section;
+    },
+
+    setHelpSearchQuery: function (query) {
+      helpSearchQuery = query;
+    },
+
+    toggleHelpCategory: function (catId) {
+      helpExpandedCategories[catId] = !helpExpandedCategories[catId];
+    },
+
+    getHelpState: function () {
+      return {
+        helpModalOpen,
+        helpActiveSection,
+        helpSearchQuery,
+        helpExpandedCategories
+      };
     }
   };
 })();
