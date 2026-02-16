@@ -333,7 +333,7 @@ Add a new category object to the `CATEGORIES` array in `data.js`.
 | Extension not loading | Ensure all files are present; check console (`F12`) for JavaScript errors |
 | Want to reset | Remove extension from `chrome://extensions/`, clear site data, reload |
 | Children items not expanding | Ensure you have multiple children added in Settings |
-| Bank accounts not appearing | Check that bank account types match the folder (checking/savings/foreign) |
+| Bank accounts not appearing | Check that bank account types match the folder (checking/savings/foreign/investment/credit) |
 
 ---
 
@@ -341,7 +341,7 @@ Add a new category object to the `CATEGORIES` array in `data.js`.
 
 | Version | Changes |
 |---------|---------|
-| **v1.5.0** | **Custom Checklist Items** - Users can now add their own custom items to any folder with priority tagging (Critical/Important/Optional) and a dedicated details template. Custom items are visually distinguished, can be deleted, and are included in progress tracking and export/import |
+| **v1.5.0** | **Custom Checklist Items & Extended Dynamic Items** - Users can now add their own custom items to any folder with priority tagging (Critical/Important/Optional) and a dedicated details template. Custom items are visually distinguished, can be deleted, and are included in progress tracking and export/import. Added dynamic checklist items for investment accounts and credit cards - accounts added in settings now automatically appear in "Brokerage & Investment Accounts" and "Credit Cards" folders. Improved light mode styling for PDF export button |
 | **v1.4.0** | **Glassmorphism UI redesign** with frosted glass effects, light/dark theme toggle, updated "Life Vault" branding on icons, CSS variables for theming, smooth transitions, and persistent theme preference |
 | **v1.3.0** | Built-in Help Guide with overview, all categories browser, curated video guides, tips section, and searchable content |
 | **v1.2.0** | Dynamic children items (auto-expand for multiple children), dynamic bank account items, foreign/international templates (bank, property, tax), foreign travel document support |

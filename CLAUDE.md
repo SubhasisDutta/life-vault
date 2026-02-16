@@ -343,6 +343,9 @@ Items have three priority levels defined in `data.js` via `PRIORITY_COLORS`:
 - Test custom items are included in progress calculations
 - Test custom items persist across sessions
 - Test custom items are included in export/import
+- Test dynamic investment accounts appear in Brokerage & Investment Accounts folder
+- Test dynamic credit cards appear in Credit Cards folder
+- Test PDF export button styling in light mode
 
 ## Performance Notes
 
