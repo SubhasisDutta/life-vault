@@ -20,6 +20,9 @@ const TEMPLATES = {
       { title: "Additional Notes", fields: [
         { id: "notes", label: "Additional Notes", type: "textarea", hint: "Any other important information" },
         { id: "links", label: "Relevant Links or URLs", type: "textarea", hint: "Website links, document locations, etc." },
+      ]},
+      { title: "Digital Storage", fields: [
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to cloud storage (Google Drive, Dropbox, etc.)" },
       ]}
     ]
   },
@@ -38,7 +41,7 @@ const TEMPLATES = {
       { title: "Storage & Copies", fields: [
         { id: "original_location", label: "Where is the original stored?", type: "input", hint: "e.g., Fireproof safe, safety deposit box" },
         { id: "num_certified_copies", label: "How many certified copies do you have?", type: "input" },
-        { id: "digital_copy_location", label: "Where is the digital scan stored?", type: "input", hint: "e.g., Google Drive path" },
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to cloud storage (Google Drive, Dropbox, etc.)" },
       ]},
       { title: "After Death Instructions", fields: [
         { id: "who_needs_it", label: "Who will need this document and for what purpose?", type: "textarea" },
@@ -61,6 +64,7 @@ const TEMPLATES = {
       ]},
       { title: "Storage & Renewal", fields: [
         { id: "location", label: "Where is it stored?", type: "input" },
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to cloud storage (Google Drive, Dropbox, etc.)" },
         { id: "renewal_process", label: "How to renew? (website/office)", type: "textarea" },
         { id: "renewal_cost", label: "Approximate renewal cost", type: "input" },
         { id: "calendar_reminder", label: "Calendar reminder set for renewal? (date)", type: "input" },
@@ -83,6 +87,7 @@ const TEMPLATES = {
       ]},
       { title: "Storage", fields: [
         { id: "card_location", label: "Physical card location", type: "input" },
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to cloud storage (Google Drive, Dropbox, etc.)" },
         { id: "digital_note", label: "Is it noted in encrypted password manager?", type: "input" },
       ]},
       { title: "After Death Instructions", fields: [
@@ -106,6 +111,7 @@ const TEMPLATES = {
       ]},
       { title: "Storage & Attorney", fields: [
         { id: "location", label: "Where is the original stored?", type: "input" },
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to cloud storage (Google Drive, Dropbox, etc.)" },
         { id: "attorney_name", label: "Immigration attorney name", type: "input" },
         { id: "attorney_phone", label: "Immigration attorney phone", type: "input" },
       ]},
@@ -127,6 +133,9 @@ const TEMPLATES = {
         { id: "state", label: "Issuing State", type: "input" },
         { id: "expiry_date", label: "Expiry Date", type: "input" },
         { id: "real_id", label: "REAL ID compliant? (Yes/No)", type: "input" },
+      ]},
+      { title: "Storage", fields: [
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to cloud storage (Google Drive, Dropbox, etc.)" },
       ]},
       { title: "After Death", fields: [
         { id: "return_to_dmv", label: "Should this be returned to DMV?", type: "input" },
@@ -159,6 +168,7 @@ const TEMPLATES = {
       ]},
       { title: "Storage & Access", fields: [
         { id: "original_location", label: "Where is the original stored?", type: "input" },
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to cloud storage (Google Drive, Dropbox, etc.)" },
         { id: "copy_locations", label: "Where are copies stored?", type: "textarea" },
         { id: "last_reviewed", label: "When was the will last reviewed/updated?", type: "input" },
       ]},
@@ -184,6 +194,9 @@ const TEMPLATES = {
         { id: "trustee", label: "Current Trustee (name + contact)", type: "input" },
         { id: "successor_trustee", label: "Successor Trustee (name + contact)", type: "input" },
         { id: "trustee_powers", label: "Summary of trustee powers", type: "textarea" },
+      ]},
+      { title: "Storage", fields: [
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to cloud storage (Google Drive, Dropbox, etc.)" },
       ]},
       { title: "Assets in Trust", fields: [
         { id: "real_property", label: "Real property transferred to trust?", type: "textarea" },
@@ -217,6 +230,7 @@ const TEMPLATES = {
       ]},
       { title: "Storage & Distribution", fields: [
         { id: "original_location", label: "Where is the original stored?", type: "input" },
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to cloud storage (Google Drive, Dropbox, etc.)" },
         { id: "copies_given_to", label: "Who has copies? (banks, attorney, etc.)", type: "textarea" },
       ]},
       { title: "After Death Note", fields: [
@@ -234,6 +248,9 @@ const TEMPLATES = {
         { id: "guardian_relation", label: "Relationship to child", type: "input" },
         { id: "backup_guardian", label: "Backup Guardian (name + contact)", type: "input" },
         { id: "guardian_agreed", label: "Has guardian agreed to serve?", type: "input" },
+      ]},
+      { title: "Storage", fields: [
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to cloud storage (Google Drive, Dropbox, etc.)" },
       ]},
       { title: "Your Wishes for Children", fields: [
         { id: "upbringing_values", label: "Values you want your children raised with", type: "textarea" },
@@ -269,6 +286,7 @@ const TEMPLATES = {
         { id: "doctor_has_copy", label: "Does your primary doctor have a copy?", type: "input" },
         { id: "hospital_on_file", label: "On file at preferred hospital?", type: "input" },
         { id: "original_location", label: "Where is the original?", type: "input" },
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to cloud storage (Google Drive, Dropbox, etc.)" },
       ]}
     ]
   },
@@ -551,6 +569,9 @@ const TEMPLATES = {
         { id: "agent_name", label: "Insurance Agent Name", type: "input" },
         { id: "agent_phone", label: "Agent Phone Number", type: "input" },
       ]},
+      { title: "Document Storage", fields: [
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to policy document in cloud storage" },
+      ]},
       { title: "After Death Claim Process", fields: [
         { id: "claim_phone", label: "Claims Department Phone Number", type: "input" },
         { id: "docs_needed", label: "Documents needed to file claim", type: "textarea", hint: "Death certificate, policy, claimant ID, claim form" },
@@ -576,6 +597,9 @@ const TEMPLATES = {
         { id: "monthly_premium", label: "Monthly Premium (employer portion + employee)", type: "input" },
         { id: "deductible", label: "Annual Deductible", type: "input" },
         { id: "oop_max", label: "Out-of-Pocket Maximum", type: "input" },
+      ]},
+      { title: "Document Storage", fields: [
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to insurance cards/documents in cloud storage" },
       ]},
       { title: "After Death - COBRA", fields: [
         { id: "cobra_deadline", label: "COBRA election deadline (60 days from qualifying event)", type: "input" },
@@ -603,6 +627,9 @@ const TEMPLATES = {
         { id: "agent_phone", label: "Agent Phone", type: "input" },
         { id: "renewal_date", label: "Policy Renewal Date", type: "input" },
       ]},
+      { title: "Document Storage", fields: [
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to policy document in cloud storage" },
+      ]},
       { title: "After Death Instructions", fields: [
         { id: "keep_active", label: "Must this policy stay active? (Yes - property still needs coverage)", type: "textarea" },
         { id: "name_change", label: "How to change policy holder name", type: "textarea" },
@@ -620,6 +647,9 @@ const TEMPLATES = {
         { id: "benefit_amount", label: "Monthly Benefit Amount", type: "input" },
         { id: "elimination_period", label: "Elimination / Waiting Period", type: "input" },
         { id: "benefit_period", label: "Maximum Benefit Period", type: "input" },
+      ]},
+      { title: "Document Storage", fields: [
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to policy document in cloud storage" },
       ]},
       { title: "How to File Claim", fields: [
         { id: "claim_phone", label: "Claims phone number", type: "input" },
@@ -654,6 +684,9 @@ const TEMPLATES = {
         { id: "hoa_monthly", label: "HOA Monthly Dues", type: "input" },
         { id: "hoa_contact", label: "HOA Contact Info", type: "input" },
       ]},
+      { title: "Document Storage", fields: [
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to deed/title documents in cloud storage" },
+      ]},
       { title: "After Death Instructions", fields: [
         { id: "ownership_transfer", label: "How does ownership transfer? (Trust/probate)", type: "textarea" },
         { id: "keep_or_sell", label: "Recommendation: keep or sell?", type: "textarea" },
@@ -675,6 +708,7 @@ const TEMPLATES = {
       ]},
       { title: "Documents & Maintenance", fields: [
         { id: "deed_location", label: "Where is the property deed stored?", type: "input" },
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to deed/title documents in cloud storage" },
         { id: "monthly_maintenance", label: "Monthly maintenance cost", type: "input" },
         { id: "caretaker", label: "Local caretaker/contact person", type: "input" },
         { id: "property_tax", label: "Annual property tax and payment method", type: "input" },
@@ -698,6 +732,7 @@ const TEMPLATES = {
         { id: "license_plate", label: "License Plate Number", type: "input" },
         { id: "color", label: "Color", type: "input" },
         { id: "title_location", label: "Where is the title stored?", type: "input" },
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to title/registration documents in cloud storage" },
       ]},
       { title: "Financing & Insurance", fields: [
         { id: "loan_lender", label: "Loan Lender (if applicable)", type: "input" },
@@ -728,7 +763,7 @@ const TEMPLATES = {
         { id: "weight", label: "Weight (grams for gold)", type: "input" },
         { id: "estimated_value", label: "Estimated Value", type: "input" },
         { id: "location", label: "Storage Location", type: "input" },
-        { id: "photo_location", label: "Where are photos of this item stored?", type: "input" },
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to photos/appraisal documents in cloud storage" },
       ]},
       { title: "Insurance & Appraisal", fields: [
         { id: "insured", label: "Is this item insured? Policy details?", type: "input" },
@@ -758,6 +793,7 @@ const TEMPLATES = {
         { id: "tax_software", label: "Tax Software Used (TurboTax, etc.)", type: "input" },
         { id: "software_login", label: "Tax software login (in password manager?)", type: "input" },
         { id: "returns_location", label: "Where are past returns stored?", type: "input" },
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to tax returns in cloud storage" },
       ]},
       { title: "After Death Instructions", fields: [
         { id: "final_return", label: "Final return must be filed for year of death", type: "textarea" },
@@ -781,6 +817,9 @@ const TEMPLATES = {
         { id: "consultant_name", label: "Foreign Tax Consultant Name", type: "input" },
         { id: "consultant_phone", label: "Phone Number", type: "input" },
         { id: "consultant_email", label: "Email", type: "input" },
+      ]},
+      { title: "Document Storage", fields: [
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to tax documents in cloud storage" },
       ]},
       { title: "After Death", fields: [
         { id: "filing_needed", label: "Is tax filing needed after death in this country?", type: "textarea" },
@@ -939,6 +978,7 @@ const TEMPLATES = {
       ]},
       { title: "Records Location", fields: [
         { id: "records_location", label: "Where are medical records stored?", type: "input" },
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to medical records in cloud storage" },
         { id: "portal_access", label: "Patient portal access details", type: "input" },
       ]}
     ]
@@ -1008,6 +1048,7 @@ const TEMPLATES = {
       ]},
       { title: "Storage & Delivery", fields: [
         { id: "storage_location", label: "Where is this stored?", type: "input" },
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to letter/video in cloud storage" },
         { id: "delivery_instructions", label: "When and how should this be delivered?", type: "textarea" },
         { id: "who_delivers", label: "Who is responsible for delivering this?", type: "input" },
       ]}
@@ -1257,6 +1298,9 @@ const TEMPLATES = {
         { id: "payoff_date", label: "Expected Payoff Date", type: "input" },
         { id: "escrow_covers", label: "What does escrow cover? (Tax, Insurance)", type: "textarea" },
       ]},
+      { title: "Document Storage", fields: [
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to mortgage documents in cloud storage" },
+      ]},
       { title: "After Death Instructions", fields: [
         { id: "continues", label: "Mortgage continues - NOT due in full at death", type: "textarea" },
         { id: "contact_lender", label: "Contact lender to update account holder name", type: "textarea" },
@@ -1277,6 +1321,9 @@ const TEMPLATES = {
         { id: "current_balance", label: "Current Balance", type: "input" },
         { id: "monthly_payment", label: "Monthly Payment", type: "input" },
         { id: "interest_rate", label: "Interest Rate", type: "input" },
+      ]},
+      { title: "Document Storage", fields: [
+        { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to loan documents in cloud storage" },
       ]},
       { title: "After Death Treatment", fields: [
         { id: "forgiven_at_death", label: "Is this debt forgiven at death?", type: "textarea", hint: "Federal student loans: yes. 401k loans: become taxable. Private loans: paid from estate." },

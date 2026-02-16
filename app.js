@@ -69,6 +69,7 @@
   let helpResourceSearchQuery = "";
   let currentSetupStep = 0;
   let customItemModalOpen = null; // { catId, folderIdx } for adding new custom item
+  let urlFieldsInEditMode = {}; // { "field-{fieldId}": true } for tracking URL fields being edited
 
   function saveData(key, data) {
     chrome.storage.local.set({ [key]: data });
@@ -1554,6 +1555,28 @@
             <label class="tpl-label">${escAttr(replacePlaceholders(field.label))}</label>`;
         if (field.type === "textarea") {
           html += `<textarea class="tpl-textarea" id="field-${field.id}" placeholder="Enter details...">${val.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>`;
+        } else if (field.type === "url") {
+          // URL field with link display and edit toggle
+          const fieldKey = `field-${field.id}`;
+          const isEditing = urlFieldsInEditMode[fieldKey] || !val;
+          if (isEditing) {
+            html += `<div class="url-field-wrapper">
+              <input class="tpl-input" id="field-${field.id}" type="url" value="${escapedVal}" placeholder="Enter URL (e.g., https://drive.google.com/...)">
+            </div>`;
+          } else {
+            html += `<div class="url-field-wrapper">
+              <div class="url-link-display">
+                <a href="${escapedVal}" target="_blank" rel="noopener noreferrer" class="url-link" title="${escapedVal}">${escapedVal}</a>
+              </div>
+              <a href="${escapedVal}" target="_blank" rel="noopener noreferrer" class="url-open-btn" title="Open document">
+                <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              </a>
+              <button class="url-edit-btn" data-action="edit-url-field" data-field-id="${field.id}" data-field-value="${escapedVal}" title="Edit URL">
+                <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <input type="hidden" id="field-${field.id}" value="${escapedVal}">
+            </div>`;
+          }
         } else {
           html += `<input class="tpl-input" id="field-${field.id}" type="text" value="${escapedVal}" placeholder="Enter details...">`;
         }
@@ -1807,6 +1830,7 @@
             customItemModalOpen = null;
           } else {
             modalOpen = null;
+            urlFieldsInEditMode = {}; // Reset URL edit states when closing modal
           }
           render();
         }
@@ -1814,6 +1838,14 @@
       }
       case "close-modal": {
         modalOpen = null;
+        urlFieldsInEditMode = {}; // Reset URL edit states when closing modal
+        render();
+        break;
+      }
+      case "edit-url-field": {
+        const fieldId = el.dataset.fieldId;
+        const fieldKey = `field-${fieldId}`;
+        urlFieldsInEditMode[fieldKey] = true;
         render();
         break;
       }
@@ -2157,6 +2189,25 @@
       border-left: 3px solid #6366F1;
       white-space: pre-wrap;
     }
+    .field-url {
+      color: #6366F1;
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .field-url:hover {
+      text-decoration: underline;
+    }
+    @media print {
+      .field-url {
+        color: #6366F1;
+      }
+      .field-url::after {
+        content: " (" attr(href) ")";
+        font-size: 9pt;
+        color: #64748b;
+        font-weight: 400;
+      }
+    }
     .footer {
       margin-top: 32px;
       padding-top: 16px;
@@ -2207,7 +2258,13 @@
         const val = data[field.id];
         const escapedVal = val ? val.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
         if (val && val.trim()) {
-          if (val.includes('\n')) {
+          if (field.type === 'url') {
+            // Render URL fields as clickable links
+            html += `<div class="field">
+      <span class="field-label">${replacePlaceholders(field.label)}:</span>
+      <a href="${escapedVal}" target="_blank" rel="noopener noreferrer" class="field-url">${escapedVal}</a>
+    </div>`;
+          } else if (val.includes('\n')) {
             html += `<div class="field">
       <div class="field-label">${replacePlaceholders(field.label)}:</div>
       <div class="field-multiline">${escapedVal}</div>
@@ -2231,11 +2288,6 @@
     html += `<div class="footer">
       Exported from <strong>${settings.familyName} Life Vault</strong> &bull; ${new Date().toLocaleDateString()}
     </div>
-    <script>
-      document.querySelector('.print-btn').addEventListener('click', function() {
-        window.print();
-      });
-    </script>
 </body>
 </html>`;
 
@@ -2243,6 +2295,13 @@
     if (printWindow) {
       printWindow.document.write(html);
       printWindow.document.close();
+      // Add click handler after document is ready (avoids CSP inline script issues)
+      const printBtn = printWindow.document.querySelector('.print-btn');
+      if (printBtn) {
+        printBtn.addEventListener('click', function() {
+          printWindow.print();
+        });
+      }
     } else {
       alert('Please allow pop-ups to export as PDF');
     }

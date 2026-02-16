@@ -160,10 +160,21 @@ Each checklist item can have a detailed form with:
 
 - Document details (numbers, dates, locations)
 - Storage information
+- **Digital scan URL** - Link to cloud storage (Google Drive, Dropbox, etc.)
 - After-death instructions for your family
 - Contact information and processes
 
 Templates include: birth certificates, passports, foreign travel documents, bank accounts (domestic & foreign), credit cards, investment accounts, retirement accounts, crypto wallets, insurance policies, real property (domestic & foreign), vehicles, valuables, wills, trusts, power of attorney, medical providers, prescriptions, and many more.
+
+### Digital Document Storage Links
+
+Every template includes a **"Where is the digital scan stored?"** field:
+
+- **Enter a URL** to your cloud-stored document (Google Drive, Dropbox, OneDrive, etc.)
+- **Clickable link** - After saving, the URL displays as a clickable link
+- **Open in new tab** - Click the green "open" button to view your document
+- **Easy editing** - Click the pencil icon to modify the URL
+- **PDF export** - URLs appear as clickable links in exported PDFs
 
 ### International/Foreign Support
 
@@ -233,7 +244,7 @@ Each folder includes:
 
 ```
 life-vault/
-├── manifest.json      # Chrome extension configuration (v1.5.0)
+├── manifest.json      # Chrome extension configuration (v1.6.0)
 ├── app.html           # Main application HTML with Glassmorphism CSS
 ├── app.js             # Core application logic (~1750 lines)
 ├── data.js            # Categories, folders, and checklist items
@@ -341,6 +352,7 @@ Add a new category object to the `CATEGORIES` array in `data.js`.
 
 | Version | Changes |
 |---------|---------|
+| **v1.6.0** | **Digital Scan URL Fields** - Added "Where is the digital scan stored?" URL field to all templates. URLs display as clickable links after saving, with "Open" button to view document in new tab and "Edit" button to modify. URLs are clickable in PDF exports. CSP-compliant implementation |
 | **v1.5.0** | **Custom Checklist Items & Extended Dynamic Items** - Users can now add their own custom items to any folder with priority tagging (Critical/Important/Optional) and a dedicated details template. Custom items are visually distinguished, can be deleted, and are included in progress tracking and export/import. Added dynamic checklist items for investment accounts and credit cards - accounts added in settings now automatically appear in "Brokerage & Investment Accounts" and "Credit Cards" folders. Improved light mode styling for PDF export button |
 | **v1.4.0** | **Glassmorphism UI redesign** with frosted glass effects, light/dark theme toggle, updated "Life Vault" branding on icons, CSS variables for theming, smooth transitions, and persistent theme preference |
 | **v1.3.0** | Built-in Help Guide with overview, all categories browser, curated video guides, tips section, and searchable content |

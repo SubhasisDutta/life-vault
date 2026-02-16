@@ -66,14 +66,22 @@ const TEMPLATES = {
       {
         title: "Document Information",
         fields: [
-          { id: "fullName", label: "Full Name", type: "text", hint: "..." },
-          { id: "notes", label: "Notes", type: "textarea" }
+          { id: "fullName", label: "Full Name", type: "input", hint: "..." },
+          { id: "notes", label: "Notes", type: "textarea" },
+          { id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "Link to cloud storage" }
         ]
       }
     ]
   }
 };
 ```
+
+#### Field Types
+| Type | Renders As | Description |
+|------|------------|-------------|
+| `input` | Text input | Standard single-line text field |
+| `textarea` | Textarea | Multi-line text field |
+| `url` | URL input with link display | Shows clickable link when saved, edit button to modify |
 
 #### `app.js` - State Management
 ```javascript
@@ -198,6 +206,25 @@ Custom items:
 - Are included in progress calculations and statistics
 - Are included in export/import functionality
 
+### 7. URL Field System
+
+URL fields provide a special input type for storing links to digital document scans:
+
+```javascript
+// State for tracking which URL fields are in edit mode
+let urlFieldsInEditMode = {}; // { "field-{fieldId}": true }
+
+// Field definition in templates.js
+{ id: "digital_scan_url", label: "Where is the digital scan stored?", type: "url", hint: "..." }
+```
+
+URL field behavior:
+- **Empty/Edit mode**: Shows standard URL input field
+- **Has value**: Displays as clickable link with "Open" and "Edit" buttons
+- **Open button**: Opens document in new tab (`target="_blank"`)
+- **Edit button**: Toggles field back to edit mode via `edit-url-field` action
+- **PDF export**: URLs render as clickable links with full URL shown in print mode
+
 ## Theming System
 
 ### CSS Variables
@@ -298,6 +325,11 @@ Key CSS classes for glass effect:
 | `.add-custom-item-btn` | Dashed border button to add custom items |
 | `.delete-custom-btn` | Red × button to delete custom items |
 | `.priority-chip` | Priority selector chips in custom item modal |
+| `.url-field-wrapper` | Container for URL field (input or link display) |
+| `.url-link-display` | Container showing saved URL as clickable link |
+| `.url-link` | Clickable link text (truncated with ellipsis) |
+| `.url-edit-btn` | Pencil button to edit URL |
+| `.url-open-btn` | External link button to open document |
 
 ### Modal Pattern
 
@@ -346,6 +378,11 @@ Items have three priority levels defined in `data.js` via `PRIORITY_COLORS`:
 - Test dynamic investment accounts appear in Brokerage & Investment Accounts folder
 - Test dynamic credit cards appear in Credit Cards folder
 - Test PDF export button styling in light mode
+- Test URL field displays as input when empty
+- Test URL field shows clickable link after saving
+- Test URL edit button toggles back to input mode
+- Test URL open button opens link in new tab
+- Test URL fields render as clickable links in PDF export
 
 ## Performance Notes
 

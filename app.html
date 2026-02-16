@@ -694,6 +694,62 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;backgrou
 [data-theme="light"] .check-item.custom-item{
   border-left-color:#4F46E5;
 }
+
+/* === URL FIELD STYLES === */
+.url-field-wrapper{
+  display:flex;align-items:center;gap:8px;
+}
+.url-field-wrapper .tpl-input{
+  flex:1;
+}
+.url-link-display{
+  display:flex;align-items:center;gap:8px;
+  background:var(--bg-tertiary);
+  border:1px solid var(--border-subtle);border-radius:8px;
+  padding:10px 14px;flex:1;min-width:0;
+}
+.url-link{
+  flex:1;min-width:0;
+  color:var(--accent-primary);font-size:13px;font-weight:600;
+  text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  transition:color 0.2s ease;
+}
+.url-link:hover{
+  color:var(--accent-secondary);text-decoration:underline;
+}
+.url-edit-btn{
+  background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);
+  border-radius:6px;width:32px;height:32px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all 0.3s ease;
+  color:#A5B4FC;font-size:14px;
+}
+.url-edit-btn:hover{
+  background:rgba(99,102,241,0.25);border-color:rgba(99,102,241,0.4);
+}
+.url-edit-btn svg{
+  width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;
+}
+.url-open-btn{
+  background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);
+  border-radius:6px;width:32px;height:32px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all 0.3s ease;
+  color:#6EE7B7;font-size:14px;text-decoration:none;
+}
+.url-open-btn:hover{
+  background:rgba(52,211,153,0.25);border-color:rgba(52,211,153,0.4);
+}
+.url-open-btn svg{
+  width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;
+}
+
+/* Light mode URL field overrides */
+[data-theme="light"] .url-link{color:#4F46E5}
+[data-theme="light"] .url-link:hover{color:#7C3AED}
+[data-theme="light"] .url-link-display{background:rgba(255,255,255,0.8)}
+[data-theme="light"] .url-edit-btn{background:rgba(79,70,229,0.1);color:#4F46E5;border-color:rgba(79,70,229,0.25)}
+[data-theme="light"] .url-open-btn{background:rgba(5,150,105,0.1);color:#047857;border-color:rgba(5,150,105,0.25)}
 </style>
 </head>
 <body>
