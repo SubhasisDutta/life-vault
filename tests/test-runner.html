@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Life Vault - Test Suite</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Courier New', monospace;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 24px;
+      line-height: 1.6;
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 800;
+      margin-bottom: 8px;
+      color: #f8fafc;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: #64748b;
+      margin-bottom: 24px;
+    }
+
+    /* Summary */
+    .test-summary {
+      padding: 20px 24px;
+      border-radius: 12px;
+      margin-bottom: 24px;
+      border: 1px solid;
+    }
+    .test-summary.all-pass {
+      background: rgba(52, 211, 153, 0.1);
+      border-color: rgba(52, 211, 153, 0.3);
+    }
+    .test-summary.has-failures {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+    .test-summary h2 {
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+    .all-pass h2 { color: #34d399; }
+    .has-failures h2 { color: #f87171; }
+
+    .test-counts {
+      display: flex;
+      gap: 16px;
+    }
+    .count {
+      font-size: 14px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 6px;
+    }
+    .count.total { background: rgba(99, 102, 241, 0.15); color: #a5b4fc; }
+    .count.passed { background: rgba(52, 211, 153, 0.15); color: #6ee7b7; }
+    .count.failed { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
+
+    /* Suite */
+    .test-suite {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      margin-bottom: 8px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .suite-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s;
+    }
+    .suite-header:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+    .suite-icon { font-size: 16px; }
+    .suite-name { flex: 1; font-weight: 600; font-size: 14px; }
+    .suite-count {
+      font-size: 12px;
+      color: #64748b;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .suite-pass .suite-count { color: #6ee7b7; }
+    .suite-fail .suite-count { color: #fca5a5; }
+
+    .suite-tests {
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 4px 0;
+    }
+    .collapsed .suite-tests { display: none; }
+
+    /* Individual test */
+    .test-case {
+      padding: 6px 16px 6px 42px;
+      font-size: 13px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .test-case.pass { color: #94a3b8; }
+    .test-case.fail { color: #fca5a5; }
+    .test-icon { flex-shrink: 0; }
+    .test-case.pass .test-icon { color: #34d399; }
+    .test-case.fail .test-icon { color: #ef4444; }
+    .test-name { flex: 1; }
+    .test-error {
+      margin-top: 4px;
+      padding: 6px 10px;
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      border-radius: 6px;
+      font-size: 11px;
+      color: #fca5a5;
+      word-break: break-word;
+      width: 100%;
+    }
+
+    /* Loading */
+    #loading {
+      text-align: center;
+      padding: 60px 20px;
+      color: #64748b;
+      font-size: 14px;
+    }
+    #loading .spinner {
+      display: inline-block;
+      width: 32px;
+      height: 32px;
+      border: 3px solid rgba(99, 102, 241, 0.2);
+      border-top-color: #6366f1;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <h1>Life Vault Test Suite</h1>
+  <div class="subtitle">Testing all functionality - open browser console for detailed output</div>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <div>Running tests...</div>
+  </div>
+
+  <div id="test-results"></div>
+
+  <!-- The app needs a #app div for theme application -->
+  <div id="app" style="display:none"></div>
+
+  <!-- 1. Chrome API mock (must be first) -->
+  <script src="chrome-mock.js"></script>
+
+  <!-- 2. App data files (no chrome dependency) -->
+  <script src="../data.js"></script>
+  <script src="../templates.js"></script>
+
+  <!-- 3. Test harness (exposes internals) -->
+  <script src="test-harness.js"></script>
+
+  <!-- 4. Test framework -->
+  <script src="test-framework.js"></script>
+
+  <!-- 5. Test suite -->
+  <script src="tests.js"></script>
+
+  <script>
+    // Hide loading once results render
+    setTimeout(function () {
+      document.getElementById("loading").style.display = "none";
+    }, 100);
+  </script>
+</body>
+</html>

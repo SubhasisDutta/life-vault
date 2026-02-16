@@ -350,6 +350,58 @@ Add a new category object to the `CATEGORIES` array in `data.js`.
 
 ---
 
+## Running the Test Suite
+
+The `tests/` directory contains a full test suite covering all core functionality. No installation or build step is required.
+
+### Option 1: Headless (Node.js) — recommended
+
+```bash
+node tests/run-tests-headless.js
+```
+
+Runs all 109 tests in Node.js with colored terminal output. Returns exit code `0` on success and `1` if any tests fail (CI-friendly).
+
+**Requirement:** Node.js 14+
+
+### Option 2: Browser (visual UI)
+
+```bash
+# macOS
+open tests/test-runner.html
+
+# Linux
+xdg-open tests/test-runner.html
+
+# Or use the helper script (auto-detects OS)
+./tests/run-tests.sh
+```
+
+Opens a visual test runner in your default browser showing collapsible pass/fail results per suite. Also open the browser console (F12) for detailed output.
+
+### What's covered
+
+109 tests across 34 suites, including:
+
+- Theme switching (dark ↔ light) and persistence
+- Dynamic item expansion for multiple children
+- Dynamic bank account items (investment, credit card, checking, savings, foreign)
+- Custom item creation, deletion, and data cleanup
+- Custom items in progress calculations and export/import
+- JSON export/import roundtrip and merge with defaults
+- Template data saves for regular and custom items
+- Priority filter and search functionality
+- Progress calculations (overall, per-category, per-filter)
+- Data structure integrity (CATEGORIES, TEMPLATES, PRIORITY_COLORS)
+- Helper function correctness (key generators, escAttr, placeholders)
+- XSS prevention via escAttr
+- Storage key uniqueness and completeness
+- Category processing cache invalidation
+
+See `tests/TESTING.md` for full documentation on the test architecture and how to add new tests.
+
+---
+
 ## Credits
 
 Inspired by [Nokbox](https://nokbox.com/) and comprehensive estate planning best practices.
