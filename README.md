@@ -58,11 +58,12 @@ All names are dynamically used throughout the app via placeholders, making the e
 Access the built-in Help Guide via the **❓ Help** button to:
 
 - **Overview** - Get started with step-by-step instructions
-- **All Categories** - Browse all 15 categories and 54 folders with descriptions
-- **Video Guides** - Curated educational resources explaining estate planning concepts
-- **Tips** - Best practices for organizing your digital legacy
+- **Categories Guide** - Browse all 15 categories and 54 folders with descriptions, plus embedded video guides and articles for each category
+- **Features** - Learn about all the features available in Life Vault
+- **Tips & Best Practices** - Best practices for organizing your digital legacy
+- **FAQ** - Comprehensive answers to common questions
 
-The Help Guide includes searchable content and expandable category details to help you understand what information to gather for each section.
+The Help Guide includes searchable content, expandable category details with integrated educational resources (videos and articles), and a thorough FAQ section to help you understand what information to gather for each section.
 
 ### Settings Panel
 
@@ -118,6 +119,26 @@ Add your own custom items to any folder:
 - **Delete option** - Remove custom items anytime with the × button
 - **Progress tracking** - Custom items are included in all progress calculations
 - **Export/Import** - Custom items are saved in backups and can be restored
+
+### Category Quick Links
+
+Add quick links directly to any category header for fast access to relevant resources:
+
+**How to add category quick links:**
+1. Select a category from the sidebar
+2. In the category header, click **"+ Add Link"**
+3. Enter a label (e.g., "SSA Portal", "DMV Website")
+4. Enter the URL (https:// is auto-added if missing)
+5. Click **"Add Link"**
+
+**Category quick link features:**
+- **Displayed in category header** - Quick access without scrolling
+- **One-click removal** - Click the × button to delete any link
+- **Auto URL formatting** - Automatically adds https:// if you forget
+- **Per-category organization** - Each category has its own set of links
+- **Export/Import** - Category links are included in backups
+
+This is different from the global Quick Links in Settings — category quick links are specific to each category and appear right in the category header for contextual access.
 
 ### 15 Color-Coded Categories
 
@@ -244,9 +265,9 @@ Each folder includes:
 
 ```
 life-vault/
-├── manifest.json      # Chrome extension configuration (v1.6.0)
+├── manifest.json      # Chrome extension configuration (v1.7.0)
 ├── app.html           # Main application HTML with Glassmorphism CSS
-├── app.js             # Core application logic (~1750 lines)
+├── app.js             # Core application logic (~2500 lines)
 ├── data.js            # Categories, folders, and checklist items
 ├── templates.js       # 50+ detailed template definitions (including custom_item)
 ├── background.js      # Extension background service worker
@@ -272,6 +293,7 @@ All data is stored locally using Chrome's `chrome.storage.local` API:
 | `lifeorg-setup-complete` | Setup wizard completion flag |
 | `lifeorg-theme` | Theme preference (light/dark) |
 | `lifeorg-custom-items` | User-created custom checklist items |
+| `lifeorg-category-quick-links` | Per-category quick links |
 
 **Data never leaves your device unless you export it.**
 
@@ -352,6 +374,8 @@ Add a new category object to the `CATEGORIES` array in `data.js`.
 
 | Version | Changes |
 |---------|---------|
+| **v1.7.0** | **Category Quick Links** - Add quick links directly to any category header for fast access to relevant resources (SSA Portal, DMV, etc.). Links display in the category header with one-click removal. Auto-adds https:// if missing. Included in export/import. Different from global settings quick links — these are per-category for contextual access |
+| **v1.6.1** | **Improved Help Guide** - Integrated educational resources (videos & articles) directly into each category in the Categories Guide for contextual learning. Expanded FAQ with 15+ questions covering security, usage tips, and best practices. Improved scroll position preservation in help modal |
 | **v1.6.0** | **Digital Scan URL Fields** - Added "Where is the digital scan stored?" URL field to all templates. URLs display as clickable links after saving, with "Open" button to view document in new tab and "Edit" button to modify. URLs are clickable in PDF exports. CSP-compliant implementation |
 | **v1.5.0** | **Custom Checklist Items & Extended Dynamic Items** - Users can now add their own custom items to any folder with priority tagging (Critical/Important/Optional) and a dedicated details template. Custom items are visually distinguished, can be deleted, and are included in progress tracking and export/import. Added dynamic checklist items for investment accounts and credit cards - accounts added in settings now automatically appear in "Brokerage & Investment Accounts" and "Credit Cards" folders. Improved light mode styling for PDF export button |
 | **v1.4.0** | **Glassmorphism UI redesign** with frosted glass effects, light/dark theme toggle, updated "Life Vault" branding on icons, CSS variables for theming, smooth transitions, and persistent theme preference |
@@ -372,7 +396,7 @@ The `tests/` directory contains a full test suite covering all core functionalit
 node tests/run-tests-headless.js
 ```
 
-Runs all 109 tests in Node.js with colored terminal output. Returns exit code `0` on success and `1` if any tests fail (CI-friendly).
+Runs all 138 tests in Node.js with colored terminal output. Returns exit code `0` on success and `1` if any tests fail (CI-friendly).
 
 **Requirement:** Node.js 14+
 
@@ -393,7 +417,7 @@ Opens a visual test runner in your default browser showing collapsible pass/fail
 
 ### What's covered
 
-109 tests across 34 suites, including:
+138 tests across 51 suites, including:
 
 - Theme switching (dark ↔ light) and persistence
 - Dynamic item expansion for multiple children
@@ -409,6 +433,8 @@ Opens a visual test runner in your default browser showing collapsible pass/fail
 - XSS prevention via escAttr
 - Storage key uniqueness and completeness
 - Category processing cache invalidation
+- Help modal open/close, section navigation, category expansion, and search
+- Category quick links add/delete, URL auto-formatting, persistence, and export/import
 
 See `tests/TESTING.md` for full documentation on the test architecture and how to add new tests.
 

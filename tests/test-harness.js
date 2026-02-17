@@ -12,7 +12,8 @@
     settings: "lifeorg-settings",
     setupComplete: "lifeorg-setup-complete",
     theme: "lifeorg-theme",
-    customItems: "lifeorg-custom-items"
+    customItems: "lifeorg-custom-items",
+    categoryQuickLinks: "lifeorg-category-quick-links"
   };
 
   // === DEFAULT SETTINGS ===
@@ -37,6 +38,7 @@
   let setupComplete = false;
   let currentTheme = "dark";
   let customItems = {};
+  let categoryQuickLinks = {};
 
   let activeCategory = null;
   let activeFolder = null;
@@ -62,6 +64,10 @@
   function getCustomItemsForFolder(catId, fi) {
     const key = folderKey(catId, fi);
     return customItems[key] || [];
+  }
+
+  function getCategoryQuickLinks(catId) {
+    return categoryQuickLinks[catId] || [];
   }
 
   function generateCustomItemId() {
@@ -321,8 +327,9 @@
       templateData: templateData,
       settings: settings,
       customItems: customItems,
+      categoryQuickLinks: categoryQuickLinks,
       exportDate: new Date().toISOString(),
-      version: "1.5.0"
+      version: "1.6.0"
     };
   }
 
@@ -344,6 +351,10 @@
     if (data.customItems) {
       customItems = data.customItems;
       saveData(STORAGE_KEYS.customItems, customItems);
+    }
+    if (data.categoryQuickLinks) {
+      categoryQuickLinks = data.categoryQuickLinks;
+      saveData(STORAGE_KEYS.categoryQuickLinks, categoryQuickLinks);
     }
     return true;
   }
@@ -387,6 +398,35 @@
     }
   }
 
+  // Category quick links
+  function addCategoryQuickLink(catId, label, url) {
+    const linkId = generateCustomItemId();
+    if (!categoryQuickLinks[catId]) {
+      categoryQuickLinks[catId] = [];
+    }
+    // Auto-add https:// if missing
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url;
+    }
+    categoryQuickLinks[catId].push({
+      id: linkId,
+      label: label,
+      url: url
+    });
+    saveData(STORAGE_KEYS.categoryQuickLinks, categoryQuickLinks);
+    return linkId;
+  }
+
+  function deleteCategoryQuickLink(catId, linkId) {
+    if (categoryQuickLinks[catId]) {
+      categoryQuickLinks[catId] = categoryQuickLinks[catId].filter(link => link.id !== linkId);
+      if (categoryQuickLinks[catId].length === 0) {
+        delete categoryQuickLinks[catId];
+      }
+      saveData(STORAGE_KEYS.categoryQuickLinks, categoryQuickLinks);
+    }
+  }
+
   // Expose the test API globally
   window.LifeVaultTestAPI = {
     // Constants
@@ -427,6 +467,11 @@
     addCustomItem,
     deleteCustomItem,
 
+    // Category quick links
+    getCategoryQuickLinks,
+    addCategoryQuickLink,
+    deleteCategoryQuickLink,
+
     // Export/Import
     doExportAllData,
     doImportData,
@@ -435,7 +480,7 @@
     getState: function () {
       return {
         checkedItems, templateData, settings, setupComplete,
-        currentTheme, customItems, activeCategory, activeFolder,
+        currentTheme, customItems, categoryQuickLinks, activeCategory, activeFolder,
         filter, searchQuery, showNok, modalOpen, settingsModalOpen,
         helpModalOpen, helpSearchQuery, helpActiveSection,
         helpExpandedCategories, currentSetupStep, customItemModalOpen
@@ -449,6 +494,7 @@
       if (patch.setupComplete !== undefined) setupComplete = patch.setupComplete;
       if (patch.currentTheme !== undefined) currentTheme = patch.currentTheme;
       if (patch.customItems !== undefined) customItems = patch.customItems;
+      if (patch.categoryQuickLinks !== undefined) categoryQuickLinks = patch.categoryQuickLinks;
       if (patch.activeCategory !== undefined) activeCategory = patch.activeCategory;
       if (patch.activeFolder !== undefined) activeFolder = patch.activeFolder;
       if (patch.filter !== undefined) filter = patch.filter;
@@ -470,6 +516,7 @@
       setupComplete = false;
       currentTheme = "dark";
       customItems = {};
+      categoryQuickLinks = {};
       activeCategory = null;
       activeFolder = null;
       filter = "all";

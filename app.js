@@ -11,7 +11,8 @@
     settings: "lifeorg-settings",
     setupComplete: "lifeorg-setup-complete",
     theme: "lifeorg-theme",
-    customItems: "lifeorg-custom-items"
+    customItems: "lifeorg-custom-items",
+    categoryQuickLinks: "lifeorg-category-quick-links"
   };
 
   // === DEFAULT SETTINGS ===
@@ -36,6 +37,7 @@
   let setupComplete = false;
   let currentTheme = "dark";
   let customItems = {}; // { "catId-folderIdx": [{ text, priority, id }] }
+  let categoryQuickLinks = {}; // { "catId": [{ id, label, url }] }
 
   // === THEME MANAGEMENT ===
   function applyTheme(theme) {
@@ -64,11 +66,10 @@
   let helpSearchQuery = "";
   let helpActiveSection = "overview";
   let helpExpandedCategories = {};
-  let helpExpandedResources = {};
-  let helpActiveResourceVideo = null; // tracks which video embed is open: "resourceCatIdx-videoIdx"
-  let helpResourceSearchQuery = "";
+  let helpActiveResourceVideo = null; // tracks which video embed is open in Categories Guide
   let currentSetupStep = 0;
   let customItemModalOpen = null; // { catId, folderIdx } for adding new custom item
+  let categoryQuickLinkModalOpen = null; // { catId } for adding quick link to category
   let urlFieldsInEditMode = {}; // { "field-{fieldId}": true } for tracking URL fields being edited
 
   function saveData(key, data) {
@@ -82,7 +83,8 @@
     STORAGE_KEYS.settings,
     STORAGE_KEYS.setupComplete,
     STORAGE_KEYS.theme,
-    STORAGE_KEYS.customItems
+    STORAGE_KEYS.customItems,
+    STORAGE_KEYS.categoryQuickLinks
   ], (result) => {
     checkedItems = result[STORAGE_KEYS.checked] || {};
     templateData = result[STORAGE_KEYS.templates] || {};
@@ -90,6 +92,7 @@
     setupComplete = result[STORAGE_KEYS.setupComplete] || false;
     currentTheme = result[STORAGE_KEYS.theme] || settings.theme || "dark";
     customItems = result[STORAGE_KEYS.customItems] || {};
+    categoryQuickLinks = result[STORAGE_KEYS.categoryQuickLinks] || {};
     applyTheme(currentTheme);
     render();
   });
@@ -110,6 +113,11 @@
   // Generate unique ID for custom items
   function generateCustomItemId() {
     return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+  }
+
+  // Get quick links for a category
+  function getCategoryQuickLinks(catId) {
+    return categoryQuickLinks[catId] || [];
   }
 
   // Replace placeholders in text with actual settings values
@@ -592,7 +600,6 @@
       { id: "categories", label: "Categories Guide", icon: "\uD83D\uDCC2" },
       { id: "features", label: "Features", icon: "\u2728" },
       { id: "tips", label: "Tips & Best Practices", icon: "\uD83D\uDCA1" },
-      { id: "resources", label: "Resources & Guides", icon: "\uD83D\uDCDA" },
       { id: "faq", label: "FAQ", icon: "\u2753" }
     ];
 
@@ -639,9 +646,6 @@
         break;
       case "tips":
         html += renderHelpTips();
-        break;
-      case "resources":
-        html += renderHelpResources();
         break;
       case "faq":
         html += renderHelpFAQ();
@@ -742,28 +746,100 @@
     const cats = getProcessedCategories();
     const searchLower = helpSearchQuery.toLowerCase();
 
+    // Helper to get resources for a category
+    function getResourcesForCategory(catId) {
+      return HELP_RESOURCES.find(r => r.id === catId) || null;
+    }
+
+    // Helper to render resources section
+    function renderCategoryResources(cat) {
+      const resourceCat = getResourcesForCategory(cat.id);
+      if (!resourceCat || !resourceCat.resources || resourceCat.resources.length === 0) {
+        return '';
+      }
+
+      return `
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-subtle)">
+          <div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:8px">\uD83D\uDCDA Resources & Guides:</div>
+          <p style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:12px;padding:10px;background:${cat.color}08;border-left:3px solid ${cat.color};border-radius:0 8px 8px 0">
+            <strong style="color:${cat.color}">Context:</strong> ${escAttr(resourceCat.context)}
+          </p>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            ${resourceCat.resources.map((res, ri) => {
+        const videoKey = cat.id + '-' + ri;
+        const isVideoOpen = helpActiveResourceVideo === videoKey;
+        const ytSearchUrl = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(res.searchQuery || res.title);
+        if (res.type === 'video') {
+          return `
+                  <div class="help-resource-video-card" style="border:1px solid rgba(239,68,68,0.2);border-radius:10px;overflow:hidden">
+                    <button data-action="help-toggle-video" data-video-key="${videoKey}" style="width:100%;display:flex;gap:12px;align-items:center;padding:12px 14px;border:none;background:linear-gradient(135deg,rgba(239,68,68,0.1),rgba(239,68,68,0.05));cursor:pointer;text-align:left">
+                      <div style="width:36px;height:36px;border-radius:8px;background:rgba(239,68,68,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                        <span style="font-size:18px">${isVideoOpen ? '\u25B2' : '\u25B6\uFE0F'}</span>
+                      </div>
+                      <div style="flex:1;min-width:0">
+                        <div style="font-size:13px;font-weight:600;color:var(--text-primary)">\uD83C\uDFA5 ${escAttr(res.title)}</div>
+                        <div style="font-size:11px;color:var(--text-secondary);line-height:1.4;margin-top:2px">${escAttr(res.desc)}</div>
+                      </div>
+                      <span style="font-size:11px;color:#F87171;font-weight:600;white-space:nowrap">${isVideoOpen ? 'Close' : 'Watch'}</span>
+                    </button>
+                    ${isVideoOpen ? `
+                      <div style="padding:0 14px 14px">
+                        <div style="position:relative;border-radius:10px;overflow:hidden;margin-top:10px;background:linear-gradient(135deg,#1a1a2e,#16213e);padding:20px;text-align:center">
+                          <div style="font-size:48px;margin-bottom:12px">\uD83C\uDFA5</div>
+                          <div style="font-size:14px;font-weight:600;color:#F8FAFC;margin-bottom:6px">${escAttr(res.title)}</div>
+                          <div style="font-size:12px;color:#94A3B8;margin-bottom:16px;line-height:1.5">${escAttr(res.desc)}</div>
+                          <a href="${escAttr(ytSearchUrl)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:#EF4444;color:white;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;transition:all 0.2s">
+                            \u25B6 Watch on YouTube
+                          </a>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap">
+                          <a href="${escAttr(ytSearchUrl)}" target="_blank" rel="noopener" style="font-size:11px;color:#F87171;text-decoration:none;font-weight:600">\uD83D\uDD0D Search for this video on YouTube \u2197</a>
+                        </div>
+                      </div>
+                    ` : ''}
+                  </div>`;
+        } else {
+          return `
+                  <a href="${escAttr(res.url)}" target="_blank" rel="noopener" class="help-resource-article-card" style="display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid rgba(52,211,153,0.2);border-radius:10px;background:linear-gradient(135deg,rgba(52,211,153,0.08),rgba(52,211,153,0.03));text-decoration:none;transition:all 0.2s">
+                    <div style="width:36px;height:36px;border-radius:8px;background:rgba(52,211,153,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+                      <span style="font-size:18px">\uD83D\uDCDD</span>
+                    </div>
+                    <div style="flex:1;min-width:0">
+                      <div style="font-size:13px;font-weight:600;color:var(--text-primary)">\uD83D\uDCD6 ${escAttr(res.title)}</div>
+                      <div style="font-size:11px;color:var(--text-secondary);line-height:1.4;margin-top:2px">${escAttr(res.desc)}</div>
+                      <div style="font-size:10px;color:#6EE7B7;font-weight:600;margin-top:6px">Read Article \u2197</div>
+                    </div>
+                  </a>`;
+        }
+      }).join('')}
+          </div>
+        </div>`;
+    }
+
     return `
       <div class="help-section">
         <h2 style="font-size:20px;font-weight:700;color:var(--text-primary);margin-bottom:16px">\uD83D\uDCC2 Categories Guide</h2>
         <p style="color:var(--text-secondary);line-height:1.6;margin-bottom:20px">
-          Life Vault organizes your information into ${cats.length} categories. Click on any category below to learn more about what it covers.
+          Life Vault organizes your information into ${cats.length} categories. Click on any category below to learn more about what it covers and find curated resources to help you complete it.
         </p>
 
         <div style="display:flex;flex-direction:column;gap:12px">
           ${cats.filter(cat => {
-            if (!helpSearchQuery) return true;
-            return replacePlaceholders(cat.name).toLowerCase().includes(searchLower) ||
-                   replacePlaceholders(cat.description).toLowerCase().includes(searchLower);
-          }).map(cat => {
-            const isExpanded = helpExpandedCategories[cat.id];
-            const prog = getCatProgress(cat);
-            return `
+      if (!helpSearchQuery) return true;
+      return replacePlaceholders(cat.name).toLowerCase().includes(searchLower) ||
+        replacePlaceholders(cat.description).toLowerCase().includes(searchLower);
+    }).map(cat => {
+      const isExpanded = helpExpandedCategories[cat.id];
+      const prog = getCatProgress(cat);
+      const resourceCat = getResourcesForCategory(cat.id);
+      const hasResources = resourceCat && resourceCat.resources && resourceCat.resources.length > 0;
+      return `
               <div id="help-cat-${cat.id}" style="background:var(--bg-glass);border:1px solid ${cat.color}30;border-radius:12px;overflow:hidden">
                 <button data-action="help-toggle-category" data-cat-id="${cat.id}" style="width:100%;display:flex;align-items:center;gap:12px;padding:16px;border:none;background:transparent;cursor:pointer;text-align:left">
                   <div style="width:44px;height:44px;border-radius:10px;background:${cat.color}20;display:flex;align-items:center;justify-content:center;font-size:22px">${cat.icon}</div>
                   <div style="flex:1">
                     <div style="font-size:15px;font-weight:600;color:var(--text-primary)">${escAttr(replacePlaceholders(cat.name))}</div>
-                    <div style="font-size:12px;color:var(--text-secondary)">${cat.folders.length} folders &bull; ${Math.round(prog)}% complete</div>
+                    <div style="font-size:12px;color:var(--text-secondary)">${cat.folders.length} folders &bull; ${Math.round(prog)}% complete${hasResources ? ' &bull; ' + resourceCat.resources.length + ' resources' : ''}</div>
                   </div>
                   <span style="color:var(--text-secondary);font-size:16px">${isExpanded ? '\u25B2' : '\u25BC'}</span>
                 </button>
@@ -774,10 +850,11 @@
                     <ul style="font-size:13px;color:var(--text-secondary);padding-left:20px;line-height:1.8">
                       ${cat.folders.map(f => `<li>\uD83D\uDCC1 ${escAttr(replacePlaceholders(f.name))} (${f.items.length} items)</li>`).join('')}
                     </ul>
+                    ${renderCategoryResources(cat)}
                   </div>
                 ` : ''}
               </div>`;
-          }).join('')}
+    }).join('')}
         </div>
       </div>`;
   }
@@ -877,7 +954,7 @@
       context: "Your vault distinguishes between a Will (probate) and a Trust (avoids probate).",
       resources: [
         { type: "video", title: "Estate Planning Made Simple \u2014 Free Starter Kit", desc: "Explains the core difference between a Will and a Trust, helping you decide if you need the Living Trust folder populated.", searchQuery: "Estate Planning Made Simple free starter kit walkthrough" },
-        { type: "article", title: "Revocable Trust vs. Will: A Guide", desc: "Understand why your vault prioritizes transferring real property into the trust to avoid probate courts.", url: "https://www.investopedia.com/articles/personal-finance/100715/revocable-trust-vs-will.asp" },
+        { type: "article", title: "Revocable Trust vs. Will: A Guide", desc: "Understand why your vault prioritizes transferring real property into the trust to avoid probate courts.", url: "https://www.investopedia.com/ask/answers/071615/what-difference-between-revocable-trust-and-living-trust.asp" },
         { type: "article", title: "Power of Attorney vs. Healthcare Proxy", desc: "Clarifies the two distinct POAs listed in your Power of Attorney folder.", url: "https://www.investopedia.com/terms/p/powerofattorney.asp" }
       ]
     },
@@ -889,7 +966,7 @@
       context: "The Beneficiary Designations Master List is identified as a critical failure point in your data.",
       resources: [
         { type: "video", title: "How to Organize Your Financial Life", desc: "Covers consolidating accounts to make the Checking Accounts folder manageable for your executor.", searchQuery: "How to Organize Your Financial Life" },
-        { type: "article", title: "Why Beneficiary Designations Override Your Will", desc: "Essential reading for your Beneficiary Master List folder. Explains why a will doesn't control your 401(k) or life insurance.", url: "https://www.investopedia.com/articles/retirement/03/080603.asp" }
+        { type: "article", title: "Why Beneficiary Designations Override Your Will", desc: "Essential reading for your Beneficiary Master List folder. Explains why a will doesn't control your 401(k) or life insurance.", url: "https://trustandwill.com/learn/beneficiary-designation-vs-will" }
       ]
     },
     {
@@ -899,7 +976,7 @@
       color: "#F472B6",
       context: "Your vault notes the specific 60-day deadline for COBRA and the need to file claims.",
       resources: [
-        { type: "article", title: "How to Claim Life Insurance Benefits: 6 Steps", desc: "Print this for the Life Insurance folder. It details the exact documents (death certificate, policy bond) needed.", url: "https://www.investopedia.com/articles/personal-finance/061615/how-to-file-life-insurance-claim.asp" },
+        { type: "article", title: "How to Claim Life Insurance Benefits: 6 Steps", desc: "Print this for the Life Insurance folder. It details the exact documents (death certificate, policy bond) needed.", url: "https://www.investopedia.com/search?q=how-to-file-life-insurance-claim" },
         { type: "article", title: "COBRA Continuation Coverage Guide (Dept of Labor)", desc: "Critical for the Health Insurance folder. Explains the strict timeline for a surviving spouse to keep health coverage.", url: "https://www.dol.gov/general/topic/health-plans/cobra" }
       ]
     },
@@ -922,7 +999,7 @@
       context: "Your vault flags the final tax return as a critical task for the executor.",
       resources: [
         { type: "article", title: "Filing a Final Federal Tax Return for a Deceased Person (IRS)", desc: "The definitive guide for the US Tax Records folder. Covers who signs the return and how to claim refunds.", url: "https://www.irs.gov/individuals/file-the-final-income-tax-returns-of-a-deceased-person" },
-        { type: "article", title: "TurboTax Guide: Death in the Family", desc: "A more user-friendly explanation of Income in Respect of a Decedent mentioned in your International Tax Records folder.", url: "https://turbotax.intuit.com/tax-tips/family/death-in-the-family/L5FyFBxyV" }
+        { type: "article", title: "TurboTax Guide: Death in the Family", desc: "A more user-friendly explanation of Income in Respect of a Decedent mentioned in your International Tax Records folder.", url: "https://turbotax.intuit.com/tax-tips/family/death-in-the-family/L5albFXM4" }
       ]
     },
     {
@@ -933,7 +1010,7 @@
       context: "Your data emphasizes the Password Manager as the key to everything.",
       resources: [
         { type: "video", title: "1Password vs Bitwarden for Families", desc: "Helps you choose the tool for your Device Access folder. Focuses on the Emergency Access features mentioned in your checklist.", searchQuery: "1Password vs Bitwarden for Families" },
-        { type: "article", title: "Digital Estate Planning: How to Organize Your Digital Assets", desc: "Step-by-step on naming a Digital Executor for your Social Media folder.", url: "https://www.investopedia.com/terms/d/digital-estate-planning.asp" }
+        { type: "article", title: "Digital Estate Planning: How to Organize Your Digital Assets", desc: "Step-by-step on naming a Digital Executor for your Social Media folder.", url: "https://www.investopedia.com/fa-one-thing-digital-estate-planning-11695074" }
       ]
     },
     {
@@ -944,7 +1021,7 @@
       context: "Organizing Family Doctor Lists and Vaccination Records.",
       resources: [
         { type: "video", title: "Organizing Medical Records for Caregivers", desc: "Practical tips on creating the Medical History Summary for the Medical History folder.", searchQuery: "Organizing Medical Records for Caregivers" },
-        { type: "article", title: "Organizing Important Documents for Seniors", desc: "Good checklist for what to put in the Family Doctor folder, specifically regarding HIPAA Release Forms.", url: "https://www.aarp.org/caregiving/basics/info-2020/important-documents.html" }
+        { type: "article", title: "Organizing Important Documents", desc: "Good checklist for what to put in the Family Doctor folder, specifically regarding HIPAA Release Forms.", url: "https://www.nia.nih.gov/health/advance-care-planning/getting-your-affairs-order-checklist-documents-prepare-future" }
       ]
     },
     {
@@ -954,8 +1031,8 @@
       color: "#EC4899",
       context: "The Education Planning folder mentions 529 Successor Owners, a technical but critical detail.",
       resources: [
-        { type: "article", title: "What Happens When a 529 Account Owner Dies?", desc: "Explains exactly how to assign the Successor Owner mentioned in your Education Savings folder so the account doesn't freeze.", url: "https://www.savingforcollege.com/article/what-happens-to-your-529-plan-if-you-die" },
-        { type: "article", title: "Letter of Instruction for Guardians", desc: "Use this to write the Letter of wishes in your Guardianship folder.", url: "https://www.nolo.com/legal-encyclopedia/writing-letter-instruction-will.html" }
+        { type: "article", title: "What Happens When a 529 Account Owner Dies?", desc: "Explains exactly how to assign the Successor Owner mentioned in your Education Savings folder so the account doesn't freeze.", url: "https://www.collegeadvantage.com/blog/blog-detail/posts/2019/09/12/what-happens-when-a-529-account-owner-dies" },
+        { type: "article", title: "Letter of Instruction for Guardians", desc: "Use this to write the Letter of wishes in your Guardianship folder.", url: "https://sshklawyers.com/how-to-write-a-letter-of-intent-for-your-childs-guardian" }
       ]
     },
     {
@@ -965,8 +1042,8 @@
       color: "#8B5CF6",
       context: "Your vault lists RSU vesting and Employer death benefits as key items.",
       resources: [
-        { type: "article", title: "What Happens to RSUs and Stock Options When You Die?", desc: "Critical reading for the Employer Stock & RSUs folder. Explains why unvested RSUs might be lost and how to check your plan document.", url: "https://www.investopedia.com/articles/personal-finance/082015/what-happens-restricted-stock-units-after-you-leave-company.asp" },
-        { type: "article", title: "Checklist: When an Employee Dies", desc: "Shows you what the employer's HR side looks like, helping your Current Employment folder instructions be more precise.", url: "https://www.shrm.org/topics-tools/news/hr-magazine/death-employee" }
+        { type: "article", title: "What Happens to RSUs and Stock Options When You Die?", desc: "Critical reading for the Employer Stock & RSUs folder. Explains why unvested RSUs might be lost and how to check your plan document.", url: "https://www.investopedia.com/terms/i/inherited-stock.asp" },
+        { type: "article", title: "Checklist: When an Employee Dies", desc: "Shows you what the employer's HR side looks like, helping your Current Employment folder instructions be more precise.", url: "https://hrdailyadvisor.hci.org/2019/11/06/checklist-what-to-do-when-an-employee-dies" }
       ]
     },
     {
@@ -976,7 +1053,7 @@
       color: "#F59E0B",
       context: "The instruction that a mortgage does NOT need to be paid off is a specific legal protection.",
       resources: [
-        { type: "article", title: "What Happens to Debt When You Die?", desc: "Validate the instructions in your Other Loans folder. Confirms that family members usually don't inherit debt unless they co-signed.", url: "https://www.nerdwallet.com/article/finance/what-happens-to-debt-when-you-die" }
+        { type: "article", title: "What Happens to Debt When You Die?", desc: "Validate the instructions in your Other Loans folder. Confirms that family members usually don't inherit debt unless they co-signed.", url: "https://www.consumerfinance.gov/ask-cfpb/does-a-persons-debt-go-away-when-they-die-en-1463" }
       ]
     },
     {
@@ -986,7 +1063,7 @@
       color: "#06B6D4",
       context: "Managing Keys & Access Codes and Auto-pay.",
       resources: [
-        { type: "article", title: "The Ultimate Moving & Utilities Checklist", desc: "While written for moving, this is the best type of list to populate your Utilities & Services folder with account numbers and providers.", url: "https://www.moving.com/tips/moving-utilities-checklist/" }
+        { type: "article", title: "The Ultimate Moving & Utilities Checklist", desc: "While written for moving, this is the best type of list to populate your Utilities & Services folder with account numbers and providers.", url: "https://www.northamerican.com/moving-resources/checklists/utility-checklist/1000" }
       ]
     },
     {
@@ -996,7 +1073,7 @@
       color: "#EF4444",
       context: "The First 48 Hours calls are critical.",
       resources: [
-        { type: "article", title: "The ICE (In Case of Emergency) Binder Checklist", desc: "Use this to verify you haven't missed anyone in your Emergency Contacts folder.", url: "https://www.theorganizedmom.net/ice-binder-checklist/" }
+        { type: "article", title: "The ICE (In Case of Emergency) Binder Checklist", desc: "Use this to verify you haven't missed anyone in your Emergency Contacts folder.", url: "https://www.snyderlawpc.com/building-your-emergency-binder-the-most-important-packet-your-family-will-ever-hold/" }
       ]
     },
     {
@@ -1015,112 +1092,14 @@
       title: "Legacy & Memories",
       icon: "\uD83D\uDC9C",
       color: "#A855F7",
-      context: "Ethical Will and Legacy Letters are unique items in your vault.",
+      context: "Will and Legacy Letters are unique items in your vault.",
       resources: [
-        { type: "video", title: "Writing a Legacy Letter", desc: "Visual guidance on writing an ethical will or legacy letter for your loved ones.", searchQuery: "Writing a Legacy Letter Ethical Will" },
-        { type: "article", title: "How to Write an Ethical Will", desc: "Provides prompts and examples to help you write the Letter of values mentioned in your Ethical Will folder.", url: "https://www.investopedia.com/terms/e/ethical-will.asp" }
+        { type: "video", title: "Writing a Legacy Letter", desc: "Visual guidance on writing an will or legacy letter for your loved ones.", searchQuery: "Writing a Legacy Letter Will" },
+        { type: "article", title: "How to Write an Will", desc: "Provides prompts and examples to help you write the Letter of values mentioned in your Ethical Will folder.", url: "https://www.investopedia.com/terms/l/last-will-and-testament.asp" }
       ]
     }
   ];
 
-  function renderHelpResources() {
-    const searchLower = helpResourceSearchQuery.toLowerCase();
-    const filteredResources = HELP_RESOURCES.filter(cat => {
-      if (!helpResourceSearchQuery) return true;
-      return cat.title.toLowerCase().includes(searchLower) ||
-             cat.context.toLowerCase().includes(searchLower) ||
-             cat.resources.some(r => r.title.toLowerCase().includes(searchLower) || r.desc.toLowerCase().includes(searchLower));
-    });
-
-    return `
-      <div class="help-section">
-        <h2 style="font-size:20px;font-weight:700;color:var(--text-primary);margin-bottom:8px">\uD83D\uDCDA Resources & Guides</h2>
-        <p style="color:var(--text-secondary);line-height:1.6;margin-bottom:16px">
-          Curated videos and articles to help you complete each vault category. Expand a category to see relevant guides, then click to watch or read.
-        </p>
-
-        <input class="tpl-input" type="text" id="resource-search-input" placeholder="Search resources..." value="${escAttr(helpResourceSearchQuery)}" style="margin-bottom:20px;font-size:13px">
-
-        <div style="display:flex;flex-direction:column;gap:12px">
-          ${filteredResources.map((cat, ci) => {
-            const isExpanded = helpExpandedResources[cat.id];
-            return `
-              <div class="help-resource-category" style="background:var(--bg-glass);border:1px solid ${cat.color}30;border-radius:12px;overflow:hidden">
-                <button data-action="help-toggle-resource" data-resource-id="${cat.id}" style="width:100%;display:flex;align-items:center;gap:12px;padding:14px 16px;border:none;background:transparent;cursor:pointer;text-align:left">
-                  <div style="width:40px;height:40px;border-radius:10px;background:${cat.color}20;display:flex;align-items:center;justify-content:center;font-size:20px">${cat.icon}</div>
-                  <div style="flex:1">
-                    <div style="font-size:14px;font-weight:600;color:var(--text-primary)">${escAttr(cat.title)}</div>
-                    <div style="font-size:11px;color:var(--text-secondary);margin-top:2px">${cat.resources.length} resource${cat.resources.length !== 1 ? 's' : ''}</div>
-                  </div>
-                  <span style="color:var(--text-secondary);font-size:14px;transition:transform 0.2s;${isExpanded ? 'transform:rotate(180deg)' : ''}">\u25BC</span>
-                </button>
-                ${isExpanded ? `
-                  <div style="padding:0 16px 16px;border-top:1px solid var(--border-subtle)">
-                    <p style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin:12px 0;padding:10px;background:${cat.color}08;border-left:3px solid ${cat.color};border-radius:0 8px 8px 0">
-                      <strong style="color:${cat.color}">Context:</strong> ${escAttr(cat.context)}
-                    </p>
-                    <div style="display:flex;flex-direction:column;gap:10px">
-                      ${cat.resources.map((res, ri) => {
-                        const videoKey = cat.id + '-' + ri;
-                        const isVideoOpen = helpActiveResourceVideo === videoKey;
-                        const ytSearchUrl = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(res.searchQuery || res.title);
-                        if (res.type === 'video') {
-                          return `
-                            <div class="help-resource-video-card" style="border:1px solid rgba(239,68,68,0.2);border-radius:10px;overflow:hidden">
-                              <button data-action="help-toggle-video" data-video-key="${videoKey}" style="width:100%;display:flex;gap:12px;align-items:center;padding:12px 14px;border:none;background:linear-gradient(135deg,rgba(239,68,68,0.1),rgba(239,68,68,0.05));cursor:pointer;text-align:left">
-                                <div style="width:36px;height:36px;border-radius:8px;background:rgba(239,68,68,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-                                  <span style="font-size:18px">${isVideoOpen ? '\u25B2' : '\u25B6\uFE0F'}</span>
-                                </div>
-                                <div style="flex:1;min-width:0">
-                                  <div style="font-size:13px;font-weight:600;color:var(--text-primary)">\uD83C\uDFA5 ${escAttr(res.title)}</div>
-                                  <div style="font-size:11px;color:var(--text-secondary);line-height:1.4;margin-top:2px">${escAttr(res.desc)}</div>
-                                </div>
-                                <span style="font-size:11px;color:#F87171;font-weight:600;white-space:nowrap">${isVideoOpen ? 'Close' : 'Watch'}</span>
-                              </button>
-                              ${isVideoOpen ? `
-                                <div style="padding:0 14px 14px">
-                                  <div style="position:relative;border-radius:10px;overflow:hidden;margin-top:10px;background:linear-gradient(135deg,#1a1a2e,#16213e);padding:20px;text-align:center">
-                                    <div style="font-size:48px;margin-bottom:12px">\uD83C\uDFA5</div>
-                                    <div style="font-size:14px;font-weight:600;color:#F8FAFC;margin-bottom:6px">${escAttr(res.title)}</div>
-                                    <div style="font-size:12px;color:#94A3B8;margin-bottom:16px;line-height:1.5">${escAttr(res.desc)}</div>
-                                    <a href="${escAttr(ytSearchUrl)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:#EF4444;color:white;text-decoration:none;border-radius:8px;font-size:13px;font-weight:600;transition:all 0.2s">
-                                      \u25B6 Watch on YouTube
-                                    </a>
-                                  </div>
-                                  <div style="display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap">
-                                    <a href="${escAttr(ytSearchUrl)}" target="_blank" rel="noopener" style="font-size:11px;color:#F87171;text-decoration:none;font-weight:600">\uD83D\uDD0D Search for this video on YouTube \u2197</a>
-                                  </div>
-                                </div>
-                              ` : ''}
-                            </div>`;
-                        } else {
-                          return `
-                            <a href="${escAttr(res.url)}" target="_blank" rel="noopener" class="help-resource-article-card" style="display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid rgba(52,211,153,0.2);border-radius:10px;background:linear-gradient(135deg,rgba(52,211,153,0.08),rgba(52,211,153,0.03));text-decoration:none;transition:all 0.2s">
-                              <div style="width:36px;height:36px;border-radius:8px;background:rgba(52,211,153,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-                                <span style="font-size:18px">\uD83D\uDCDD</span>
-                              </div>
-                              <div style="flex:1;min-width:0">
-                                <div style="font-size:13px;font-weight:600;color:var(--text-primary)">\uD83D\uDCD6 ${escAttr(res.title)}</div>
-                                <div style="font-size:11px;color:var(--text-secondary);line-height:1.4;margin-top:2px">${escAttr(res.desc)}</div>
-                                <div style="font-size:10px;color:#6EE7B7;font-weight:600;margin-top:6px">Read Article \u2197</div>
-                              </div>
-                            </a>`;
-                        }
-                      }).join('')}
-                    </div>
-                  </div>
-                ` : ''}
-              </div>`;
-          }).join('')}
-        </div>
-        ${filteredResources.length === 0 ? `
-          <div style="text-align:center;padding:40px 20px;color:var(--text-secondary)">
-            <div style="font-size:32px;margin-bottom:12px">\uD83D\uDD0D</div>
-            <p style="font-size:14px">No resources found matching "${escAttr(helpResourceSearchQuery)}"</p>
-          </div>
-        ` : ''}
-      </div>`;
-  }
 
   function renderHelpFAQ() {
     const faqs = [
@@ -1129,16 +1108,36 @@
         a: "All your data is stored locally in your browser's Chrome storage. It never leaves your device unless you explicitly export it."
       },
       {
+        q: "Is my data secure?",
+        a: "Yes. Your data stays entirely on your device and is never sent to any server. However, anyone with access to your Chrome browser can view it, so ensure your computer is password-protected."
+      },
+      {
         q: "Can I use Life Vault on multiple devices?",
         a: "Currently, Life Vault stores data locally per browser. To use on another device, export your data and import it on the new device."
+      },
+      {
+        q: "What happens if I uninstall the extension?",
+        a: "Your data will be permanently deleted when you uninstall. Always export a backup (Settings > Export Data) before uninstalling to preserve your information."
       },
       {
         q: "How do I share information with my partner?",
         a: "You can export individual items as PDF or Markdown files, or export all data as JSON. Share these files securely with your partner."
       },
       {
+        q: "What are the priority levels?",
+        a: "CRITICAL items are urgent and should be completed first (e.g., will, life insurance). IMPORTANT items are necessary but less urgent. OPTIONAL items are helpful but not essential."
+      },
+      {
+        q: "What is 'Next of Kin Instructions'?",
+        a: "Each folder includes special guidance written for your loved ones explaining what to do with that information after you're gone. Click the button in any folder to view or share these instructions."
+      },
+      {
         q: "Can I add my own items to a folder?",
         a: "Yes! Click the '+ Add Custom Item' button at the bottom of any folder to add your own items with custom priorities."
+      },
+      {
+        q: "Can I delete items I don't need?",
+        a: "You can delete custom items you've added. Built-in items cannot be deleted, but you can leave them unchecked if they don't apply to your situation."
       },
       {
         q: "What happens if I reset my progress?",
@@ -1147,6 +1146,26 @@
       {
         q: "How do I change my family information?",
         a: "Go to Settings (gear icon in the header) to update family names, children, bank accounts, and other personalized information."
+      },
+      {
+        q: "How often should I update my vault?",
+        a: "Review your vault at least once a year, or whenever you experience major life changes like moving, changing jobs, having children, or opening new accounts."
+      },
+      {
+        q: "Where should I start?",
+        a: "Start with the CRITICAL items in Identity & Docs and Legal categories. These are the most important documents your family would need immediately. Use the priority filter to focus on critical items first."
+      },
+      {
+        q: "How do I print my information?",
+        a: "Open any item's details and click 'Export PDF' to generate a printable document. You can also export all data as JSON from Settings for a complete backup."
+      },
+      {
+        q: "What are Quick Links?",
+        a: "Quick Links (in Settings) let you save shortcuts to frequently used resources like your Google Drive, password manager, or financial institution websites for easy access."
+      },
+      {
+        q: "Is there a mobile app?",
+        a: "Life Vault is currently a Chrome extension only. For mobile access, export your data and store it in a secure cloud location you can access from any device."
       }
     ];
 
@@ -1216,6 +1235,45 @@
           <div style="display:flex;gap:8px;margin-top:20px">
             <button class="save-btn" data-action="save-custom-item">Add Item</button>
             <button class="export-btn" data-action="close-custom-item-modal">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+    return html;
+  }
+
+  // === RENDER CATEGORY QUICK LINK MODAL ===
+  function renderCategoryQuickLinkModal() {
+    const { catId } = categoryQuickLinkModalOpen;
+    const cat = getProcessedCategories().find(c => c.id === catId);
+
+    let html = `<div class="modal-overlay" data-action="close-modal-overlay">
+      <div class="modal" data-modal-inner="true" style="max-width:450px">
+        <div class="modal-header">
+          <div>
+            <div class="modal-title">\uD83D\uDD17 Add Quick Link</div>
+            <div style="font-size:12px;color:#94A3B8;margin-top:4px">${cat ? cat.icon + ' ' + escAttr(replacePlaceholders(cat.name)) : ''}</div>
+          </div>
+          <button class="modal-close" data-action="close-category-quick-link-modal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="tpl-section">
+            <div class="tpl-section-title">Link Details</div>
+            <div class="tpl-field">
+              <label class="tpl-label">Link Label *</label>
+              <input class="tpl-input" id="cat-quick-link-label" type="text" placeholder="e.g., SSA Portal, DMV Website...">
+              <div class="tpl-hint">A short name for this link</div>
+            </div>
+            <div class="tpl-field">
+              <label class="tpl-label">URL *</label>
+              <input class="tpl-input" id="cat-quick-link-url" type="url" placeholder="https://...">
+              <div class="tpl-hint">The full web address</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:20px">
+            <button class="save-btn" data-action="save-category-quick-link">Add Link</button>
+            <button class="export-btn" data-action="close-category-quick-link-modal">Cancel</button>
           </div>
         </div>
       </div>
@@ -1357,6 +1415,7 @@
     } else {
       // CATEGORY DETAIL VIEW
       const prog = getCatProgress(activeCat);
+      const catQuickLinks = getCategoryQuickLinks(activeCat.id);
       html += `<div class="cat-header" style="background:linear-gradient(135deg,${activeCat.color}15,transparent);border:1px solid ${activeCat.color}30">
         <div style="display:flex;align-items:center;gap:10px">
           <div style="width:48px;height:48px;border-radius:12px;background:${activeCat.color}25;display:flex;align-items:center;justify-content:center;font-size:24px;border:2px solid ${activeCat.color}40">${activeCat.icon}</div>
@@ -1368,6 +1427,19 @@
             <p style="font-size:12px;color:#94A3B8;margin:4px 0 0">${escAttr(replacePlaceholders(activeCat.description))}</p>
           </div>
           ${progressRingSVG(prog, 56, 5, activeCat.color)}
+        </div>
+        <div class="cat-quick-links" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid ${activeCat.color}20">
+          ${catQuickLinks.map(link => `
+            <div class="cat-quick-link-item" style="display:flex;align-items:center;gap:4px;background:${activeCat.color}15;border:1px solid ${activeCat.color}25;border-radius:8px;padding:4px 8px 4px 10px">
+              <a href="${escAttr(link.url)}" target="_blank" style="font-size:12px;color:${activeCat.color};text-decoration:none;display:flex;align-items:center;gap:4px" title="${escAttr(link.url)}">
+                \uD83D\uDD17 ${escAttr(link.label)}
+              </a>
+              <button class="cat-quick-link-delete" data-action="delete-category-quick-link" data-cat="${activeCat.id}" data-link-id="${link.id}" style="background:none;border:none;color:#94A3B8;cursor:pointer;font-size:14px;padding:0 2px;line-height:1" title="Remove link">&times;</button>
+            </div>
+          `).join('')}
+          <button class="add-cat-quick-link-btn" data-action="open-category-quick-link-modal" data-cat="${activeCat.id}" style="font-size:12px;padding:4px 10px;background:transparent;color:${activeCat.color};border:1px dashed ${activeCat.color}40;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:4px">
+            + Add Link
+          </button>
         </div>
       </div>`;
 
@@ -1493,6 +1565,10 @@
       html += renderCustomItemModal();
     }
 
+    if (categoryQuickLinkModalOpen) {
+      html += renderCategoryQuickLinkModal();
+    }
+
     document.getElementById("app").innerHTML = html;
 
     // Re-focus search input and restore cursor position
@@ -1500,13 +1576,6 @@
     if (searchEl && searchQuery) {
       searchEl.focus();
       searchEl.setSelectionRange(searchQuery.length, searchQuery.length);
-    }
-
-    // Re-focus resource search input
-    const resSearchEl = document.getElementById("resource-search-input");
-    if (resSearchEl && helpResourceSearchQuery) {
-      resSearchEl.focus();
-      resSearchEl.setSelectionRange(helpResourceSearchQuery.length, helpResourceSearchQuery.length);
     }
   }
 
@@ -1697,9 +1766,7 @@
         helpActiveSection = "overview";
         helpSearchQuery = "";
         helpExpandedCategories = {};
-        helpExpandedResources = {};
         helpActiveResourceVideo = null;
-        helpResourceSearchQuery = "";
         render();
         break;
       }
@@ -1739,28 +1806,38 @@
       }
       case "help-toggle-category": {
         const catId = el.dataset.catId;
+        // Save scroll position before render
+        const helpMain = document.querySelector('.help-main');
+        const scrollPos = helpMain ? helpMain.scrollTop : 0;
+
         helpExpandedCategories[catId] = !helpExpandedCategories[catId];
         render();
-        break;
-      }
-      case "help-toggle-resource": {
-        const resId = el.dataset.resourceId;
-        helpExpandedResources[resId] = !helpExpandedResources[resId];
-        // Close any open video when collapsing a resource category
-        if (!helpExpandedResources[resId]) {
-          helpActiveResourceVideo = null;
+
+        // Restore scroll position after render
+        const newHelpMain = document.querySelector('.help-main');
+        if (newHelpMain) {
+          newHelpMain.scrollTop = scrollPos;
         }
-        render();
         break;
       }
       case "help-toggle-video": {
         const videoKey = el.dataset.videoKey;
+        // Save scroll position before render
+        const helpMain = document.querySelector('.help-main');
+        const scrollPos = helpMain ? helpMain.scrollTop : 0;
+
         if (helpActiveResourceVideo === videoKey) {
           helpActiveResourceVideo = null;
         } else {
           helpActiveResourceVideo = videoKey;
         }
         render();
+
+        // Restore scroll position after render
+        const newHelpMain = document.querySelector('.help-main');
+        if (newHelpMain) {
+          newHelpMain.scrollTop = scrollPos;
+        }
         break;
       }
       // Theme toggle
@@ -1828,6 +1905,8 @@
             helpModalOpen = false;
           } else if (customItemModalOpen) {
             customItemModalOpen = null;
+          } else if (categoryQuickLinkModalOpen) {
+            categoryQuickLinkModalOpen = null;
           } else {
             modalOpen = null;
             urlFieldsInEditMode = {}; // Reset URL edit states when closing modal
@@ -1909,6 +1988,29 @@
           isCustom: true
         };
         render();
+        break;
+      }
+      // Category quick link actions
+      case "open-category-quick-link-modal": {
+        categoryQuickLinkModalOpen = {
+          catId: el.dataset.cat
+        };
+        render();
+        break;
+      }
+      case "close-category-quick-link-modal": {
+        categoryQuickLinkModalOpen = null;
+        render();
+        break;
+      }
+      case "save-category-quick-link": {
+        doSaveCategoryQuickLink();
+        break;
+      }
+      case "delete-category-quick-link": {
+        const catId = el.dataset.cat;
+        const linkId = el.dataset.linkId;
+        doDeleteCategoryQuickLink(catId, linkId);
         break;
       }
     }
@@ -2298,7 +2400,7 @@
       // Add click handler after document is ready (avoids CSP inline script issues)
       const printBtn = printWindow.document.querySelector('.print-btn');
       if (printBtn) {
-        printBtn.addEventListener('click', function() {
+        printBtn.addEventListener('click', function () {
           printWindow.print();
         });
       }
@@ -2313,8 +2415,9 @@
       templateData: templateData,
       settings: settings,
       customItems: customItems,
+      categoryQuickLinks: categoryQuickLinks,
       exportDate: new Date().toISOString(),
-      version: "1.5.0"
+      version: "1.6.0"
     };
     const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -2348,6 +2451,10 @@
         if (data.customItems) {
           customItems = data.customItems;
           saveData(STORAGE_KEYS.customItems, customItems);
+        }
+        if (data.categoryQuickLinks) {
+          categoryQuickLinks = data.categoryQuickLinks;
+          saveData(STORAGE_KEYS.categoryQuickLinks, categoryQuickLinks);
         }
         alert('Data imported successfully!');
         render();
@@ -2416,6 +2523,58 @@
     }
   }
 
+  function doSaveCategoryQuickLink() {
+    if (!categoryQuickLinkModalOpen) return;
+    const { catId } = categoryQuickLinkModalOpen;
+
+    const labelEl = document.getElementById('cat-quick-link-label');
+    const urlEl = document.getElementById('cat-quick-link-url');
+
+    if (!labelEl || !labelEl.value.trim()) {
+      alert('Please enter a link label.');
+      return;
+    }
+    if (!urlEl || !urlEl.value.trim()) {
+      alert('Please enter a URL.');
+      return;
+    }
+
+    const label = labelEl.value.trim();
+    let url = urlEl.value.trim();
+
+    // Auto-add https:// if missing
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url;
+    }
+
+    const linkId = generateCustomItemId();
+
+    if (!categoryQuickLinks[catId]) {
+      categoryQuickLinks[catId] = [];
+    }
+
+    categoryQuickLinks[catId].push({
+      id: linkId,
+      label: label,
+      url: url
+    });
+
+    saveData(STORAGE_KEYS.categoryQuickLinks, categoryQuickLinks);
+    categoryQuickLinkModalOpen = null;
+    render();
+  }
+
+  function doDeleteCategoryQuickLink(catId, linkId) {
+    if (categoryQuickLinks[catId]) {
+      categoryQuickLinks[catId] = categoryQuickLinks[catId].filter(link => link.id !== linkId);
+      if (categoryQuickLinks[catId].length === 0) {
+        delete categoryQuickLinks[catId];
+      }
+      saveData(STORAGE_KEYS.categoryQuickLinks, categoryQuickLinks);
+      render();
+    }
+  }
+
   // === DELEGATED EVENT LISTENERS (CSP-compliant, no inline handlers) ===
   document.getElementById("app").addEventListener("click", function (e) {
     let el = e.target;
@@ -2465,13 +2624,6 @@
       helpSearchQuery = e.target.value;
       clearTimeout(window._helpSearchTimeout);
       window._helpSearchTimeout = setTimeout(function () {
-        render();
-      }, 200);
-    }
-    if (e.target.id === "resource-search-input") {
-      helpResourceSearchQuery = e.target.value;
-      clearTimeout(window._resourceSearchTimeout);
-      window._resourceSearchTimeout = setTimeout(function () {
         render();
       }, 200);
     }

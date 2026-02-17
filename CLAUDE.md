@@ -92,7 +92,8 @@ const STORAGE_KEYS = {
   settings: "lifeorg-settings",       // User settings object
   setupComplete: "lifeorg-setup-complete",  // boolean
   theme: "lifeorg-theme",             // "light" | "dark"
-  customItems: "lifeorg-custom-items" // { "catId-folderIdx": [{ id, text, priority, createdAt }] }
+  customItems: "lifeorg-custom-items", // { "catId-folderIdx": [{ id, text, priority, createdAt }] }
+  categoryQuickLinks: "lifeorg-category-quick-links" // { "catId": [{ id, label, url }] }
 };
 
 // Settings structure
@@ -225,6 +226,32 @@ URL field behavior:
 - **Edit button**: Toggles field back to edit mode via `edit-url-field` action
 - **PDF export**: URLs render as clickable links with full URL shown in print mode
 
+### 8. Help Modal System
+
+The Help modal provides comprehensive documentation with multiple sections:
+
+```javascript
+// Help modal state
+let helpModalOpen = false;
+let helpSearchQuery = "";
+let helpActiveSection = "overview"; // "overview" | "categories" | "features" | "tips" | "faq"
+let helpExpandedCategories = {}; // { "catId": true/false }
+let helpActiveResourceVideo = null; // "catId-videoIdx" for embedded video guides
+```
+
+Help modal features:
+- **Section navigation**: Sidebar with Overview, Categories Guide, Features, Tips, FAQ
+- **Categories Guide**: Each category is expandable with integrated resources (videos/articles)
+- **Search**: Filters categories by name in the Categories Guide section
+- **Video guides**: Embedded within each category, links to YouTube searches
+- **FAQ**: Comprehensive list of common questions and answers
+
+Help modal actions:
+- `open-help` / `close-help`: Toggle modal visibility
+- `help-section-{name}`: Navigate to a section
+- `help-toggle-category`: Expand/collapse a category in Categories Guide
+- `help-toggle-video`: Show/hide embedded video player
+
 ## Theming System
 
 ### CSS Variables
@@ -303,6 +330,31 @@ Users can add custom checklist items via the "+ Add Custom Item" button at the b
 5. **Deleting custom items** - Also removes associated template data and checked status
 6. **Progress tracking** - Custom items are included in all progress calculations
 
+### Category Quick Links Feature
+
+Each category can have its own quick links displayed in the category header. Users can add/remove links directly from the category view without going to settings.
+
+```javascript
+// State for category quick links
+let categoryQuickLinks = {}; // { "catId": [{ id, label, url }] }
+let categoryQuickLinkModalOpen = null; // { catId } for adding quick link to category
+
+// Helper function
+function getCategoryQuickLinks(catId) { return categoryQuickLinks[catId] || []; }
+```
+
+Category quick links:
+- Are displayed in the category header with an "+ Add Link" button
+- Each link shows with a delete button for easy removal
+- Links are stored per category ID in `categoryQuickLinks` object
+- URLs automatically get `https://` prefix if not provided
+- Are included in export/import functionality
+
+Category quick link actions:
+- `open-category-quick-link-modal` / `close-category-quick-link-modal`: Toggle modal visibility
+- `save-category-quick-link`: Save a new link to the category
+- `delete-category-quick-link`: Remove a link from the category
+
 ## UI Components
 
 ### Glassmorphism Elements
@@ -346,9 +398,14 @@ render();
 customItemModalOpen = { catId, folderIdx };
 render();
 
+// Open category quick link modal
+categoryQuickLinkModalOpen = { catId };
+render();
+
 // Close modal
 modalOpen = null;
 customItemModalOpen = null;
+categoryQuickLinkModalOpen = null;
 render();
 ```
 
@@ -367,7 +424,7 @@ Items have three priority levels defined in `data.js` via `PRIORITY_COLORS`:
 - Test theme switching in both directions
 - Test with multiple children configured
 - Test export/import JSON roundtrip
-- Test all template types save correctly
+- Test all template types save correctly (input, textarea, url)
 - Test search functionality across categories
 - Test custom item creation with all priority levels
 - Test custom item details template saves correctly
@@ -383,6 +440,17 @@ Items have three priority levels defined in `data.js` via `PRIORITY_COLORS`:
 - Test URL edit button toggles back to input mode
 - Test URL open button opens link in new tab
 - Test URL fields render as clickable links in PDF export
+- Test help modal opens with default state
+- Test help modal section navigation (overview, categories, features, tips, faq)
+- Test help modal category expansion toggles
+- Test help modal search functionality
+- Test help modal state persistence across section changes
+- Test category quick links display in category header
+- Test adding a category quick link via popup modal
+- Test category quick link URL auto-adds https:// if missing
+- Test deleting a category quick link
+- Test category quick links persist across sessions
+- Test category quick links are included in export/import
 
 ## Performance Notes
 

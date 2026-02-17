@@ -485,7 +485,7 @@
             assert.ok(field.id, `Template ${key} section ${si} field ${fi} missing id`);
             assert.ok(field.label, `Template ${key} section ${si} field ${fi} missing label`);
             assert.ok(
-              field.type === "input" || field.type === "textarea",
+              field.type === "input" || field.type === "textarea" || field.type === "url",
               `Template ${key} field ${field.id} invalid type: ${field.type}`
             );
           });
@@ -810,8 +810,9 @@
       assert.ok(exported.templateData, "Should have templateData");
       assert.ok(exported.settings, "Should have settings");
       assert.ok(exported.customItems, "Should have customItems");
+      assert.ok(exported.categoryQuickLinks, "Should have categoryQuickLinks");
       assert.ok(exported.exportDate, "Should have exportDate");
-      assert.equal(exported.version, "1.5.0");
+      assert.equal(exported.version, "1.6.0");
     });
     it("includes checked items", function () {
       API.reset();
@@ -971,6 +972,7 @@
       assert.ok(API.STORAGE_KEYS.setupComplete);
       assert.ok(API.STORAGE_KEYS.theme);
       assert.ok(API.STORAGE_KEYS.customItems);
+      assert.ok(API.STORAGE_KEYS.categoryQuickLinks);
     });
   });
 
@@ -1205,6 +1207,161 @@
       API.setHelpSection("features");
       API.setHelpSection("categories");
       assert.ok(API.getHelpState().helpExpandedCategories["identity"], "Category should remain expanded");
+    });
+  });
+
+  // =====================================================
+  // 20. CATEGORY QUICK LINKS
+  // =====================================================
+
+  describe("Category Quick Links: adding links", function () {
+    it("adds a quick link to a category", function () {
+      API.reset();
+      const linkId = API.addCategoryQuickLink("identity", "SSA Portal", "https://ssa.gov");
+      const links = API.getCategoryQuickLinks("identity");
+      assert.equal(links.length, 1);
+      assert.equal(links[0].label, "SSA Portal");
+      assert.equal(links[0].url, "https://ssa.gov");
+      assert.equal(links[0].id, linkId);
+    });
+    it("adds https:// if missing from URL", function () {
+      API.reset();
+      API.addCategoryQuickLink("identity", "DMV", "dmv.ca.gov");
+      const links = API.getCategoryQuickLinks("identity");
+      assert.equal(links[0].url, "https://dmv.ca.gov");
+    });
+    it("preserves existing https:// in URL", function () {
+      API.reset();
+      API.addCategoryQuickLink("identity", "Test", "https://example.com");
+      const links = API.getCategoryQuickLinks("identity");
+      assert.equal(links[0].url, "https://example.com");
+    });
+    it("preserves existing http:// in URL", function () {
+      API.reset();
+      API.addCategoryQuickLink("identity", "Test", "http://example.com");
+      const links = API.getCategoryQuickLinks("identity");
+      assert.equal(links[0].url, "http://example.com");
+    });
+    it("supports multiple links per category", function () {
+      API.reset();
+      API.addCategoryQuickLink("identity", "Link 1", "https://one.com");
+      API.addCategoryQuickLink("identity", "Link 2", "https://two.com");
+      API.addCategoryQuickLink("identity", "Link 3", "https://three.com");
+      const links = API.getCategoryQuickLinks("identity");
+      assert.equal(links.length, 3);
+      assert.equal(links[0].label, "Link 1");
+      assert.equal(links[1].label, "Link 2");
+      assert.equal(links[2].label, "Link 3");
+    });
+    it("supports links in different categories", function () {
+      API.reset();
+      API.addCategoryQuickLink("identity", "Identity Link", "https://id.com");
+      API.addCategoryQuickLink("financial", "Financial Link", "https://bank.com");
+      assert.equal(API.getCategoryQuickLinks("identity").length, 1);
+      assert.equal(API.getCategoryQuickLinks("financial").length, 1);
+      assert.equal(API.getCategoryQuickLinks("identity")[0].label, "Identity Link");
+      assert.equal(API.getCategoryQuickLinks("financial")[0].label, "Financial Link");
+    });
+  });
+
+  describe("Category Quick Links: deleting links", function () {
+    beforeEach();
+    it("removes a quick link", function () {
+      const linkId = API.addCategoryQuickLink("identity", "To Delete", "https://delete.me");
+      assert.equal(API.getCategoryQuickLinks("identity").length, 1);
+      API.deleteCategoryQuickLink("identity", linkId);
+      assert.equal(API.getCategoryQuickLinks("identity").length, 0);
+    });
+    it("only removes the specified link", function () {
+      API.reset();
+      const id1 = API.addCategoryQuickLink("identity", "Keep 1", "https://keep1.com");
+      const id2 = API.addCategoryQuickLink("identity", "Delete", "https://delete.com");
+      const id3 = API.addCategoryQuickLink("identity", "Keep 2", "https://keep2.com");
+      API.deleteCategoryQuickLink("identity", id2);
+      const links = API.getCategoryQuickLinks("identity");
+      assert.equal(links.length, 2);
+      assert.equal(links[0].label, "Keep 1");
+      assert.equal(links[1].label, "Keep 2");
+    });
+    it("does not affect links in other categories", function () {
+      API.reset();
+      const idIdentity = API.addCategoryQuickLink("identity", "Identity Link", "https://id.com");
+      API.addCategoryQuickLink("financial", "Financial Link", "https://bank.com");
+      API.deleteCategoryQuickLink("identity", idIdentity);
+      assert.equal(API.getCategoryQuickLinks("identity").length, 0);
+      assert.equal(API.getCategoryQuickLinks("financial").length, 1);
+    });
+  });
+
+  describe("Category Quick Links: persistence (storage)", function () {
+    beforeEach();
+    it("saves category quick links to chrome.storage", function () {
+      API.addCategoryQuickLink("legal", "Court Website", "https://courts.gov");
+      const store = window.__chromeStoreMock;
+      assert.ok(store[API.STORAGE_KEYS.categoryQuickLinks], "Category quick links should be in storage");
+      const stored = store[API.STORAGE_KEYS.categoryQuickLinks];
+      assert.ok(stored["legal"], "Category key should exist");
+      assert.equal(stored["legal"].length, 1);
+      assert.equal(stored["legal"][0].label, "Court Website");
+    });
+  });
+
+  describe("Category Quick Links: getCategoryQuickLinks helper", function () {
+    beforeEach();
+    it("returns empty array for category with no links", function () {
+      const links = API.getCategoryQuickLinks("nonexistent");
+      assert.isArray(links);
+      assert.equal(links.length, 0);
+    });
+  });
+
+  describe("Category Quick Links: included in export", function () {
+    it("exports category quick links", function () {
+      API.reset();
+      API.addCategoryQuickLink("identity", "Export Test", "https://export.test");
+      const exported = API.doExportAllData();
+      assert.ok(exported.categoryQuickLinks, "Should have categoryQuickLinks in export");
+      assert.ok(exported.categoryQuickLinks["identity"], "Should have identity category");
+      assert.equal(exported.categoryQuickLinks["identity"][0].label, "Export Test");
+    });
+  });
+
+  describe("Category Quick Links: included in import", function () {
+    beforeEach();
+    it("imports category quick links from JSON", function () {
+      const importData = JSON.stringify({
+        categoryQuickLinks: {
+          "financial": [
+            { id: "imported1", label: "Imported Bank", url: "https://bank.com" }
+          ]
+        }
+      });
+      API.doImportData(importData);
+      const links = API.getCategoryQuickLinks("financial");
+      assert.equal(links.length, 1);
+      assert.equal(links[0].label, "Imported Bank");
+      assert.equal(links[0].url, "https://bank.com");
+    });
+    it("import roundtrip preserves category quick links", function () {
+      API.reset();
+      API.addCategoryQuickLink("identity", "Roundtrip Link", "https://roundtrip.com");
+      const exported = API.doExportAllData();
+      const jsonStr = JSON.stringify(exported);
+
+      API.reset();
+      assert.equal(API.getCategoryQuickLinks("identity").length, 0);
+
+      API.doImportData(jsonStr);
+      const links = API.getCategoryQuickLinks("identity");
+      assert.equal(links.length, 1);
+      assert.equal(links[0].label, "Roundtrip Link");
+    });
+  });
+
+  describe("Storage: categoryQuickLinks key", function () {
+    it("has categoryQuickLinks storage key", function () {
+      assert.ok(API.STORAGE_KEYS.categoryQuickLinks);
+      assert.equal(API.STORAGE_KEYS.categoryQuickLinks, "lifeorg-category-quick-links");
     });
   });
 
