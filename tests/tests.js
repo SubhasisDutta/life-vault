@@ -108,13 +108,13 @@
       API.setState({ settings: { ...API.DEFAULT_SETTINGS, children: ["Alice", "Bob", "Charlie"] } });
       assert.equal(API.replacePlaceholders("Kids: {children}"), "Kids: Alice, Bob, Charlie");
     });
-    it("uses default 'Child' when no children", function () {
+    it("removes {firstChild} when no children", function () {
       API.setState({ settings: { ...API.DEFAULT_SETTINGS, children: [] } });
-      assert.equal(API.replacePlaceholders("{firstChild}"), "Child");
+      assert.equal(API.replacePlaceholders("{firstChild}"), "");
     });
-    it("uses default 'Children' when no children for {children}", function () {
+    it("removes {children} when no children", function () {
       API.setState({ settings: { ...API.DEFAULT_SETTINGS, children: [] } });
-      assert.equal(API.replacePlaceholders("{children}"), "Children");
+      assert.equal(API.replacePlaceholders("{children}"), "");
     });
     it("handles null/undefined input", function () {
       assert.equal(API.replacePlaceholders(null), null);
@@ -1008,7 +1008,7 @@
         settings: { ...API.DEFAULT_SETTINGS, children: [] }
       });
       const result = API.replacePlaceholders("{firstChild} test");
-      assert.equal(result, "Child test");
+      assert.equal(result, " test", "Empty children should replace {firstChild} with empty string");
     });
     it("handles undefined children", function () {
       API.setState({
@@ -1362,6 +1362,251 @@
     it("has categoryQuickLinks storage key", function () {
       assert.ok(API.STORAGE_KEYS.categoryQuickLinks);
       assert.equal(API.STORAGE_KEYS.categoryQuickLinks, "lifeorg-category-quick-links");
+    });
+  });
+
+  // =====================================================
+  // HOUSEHOLD TYPE FEATURES (Single/Couple/Family)
+  // =====================================================
+
+  describe("Household Type: DEFAULT_SETTINGS", function () {
+    it("has householdType field defaulting to 'single'", function () {
+      assert.equal(API.DEFAULT_SETTINGS.householdType, "single");
+    });
+    it("has empty partnerName by default", function () {
+      assert.equal(API.DEFAULT_SETTINGS.partnerName, "");
+    });
+    it("has empty children array by default", function () {
+      assert.isArray(API.DEFAULT_SETTINGS.children);
+      assert.equal(API.DEFAULT_SETTINGS.children.length, 0);
+    });
+  });
+
+  describe("Household Type: single user settings", function () {
+    beforeEach();
+    it("single user can have a beneficiary name", function () {
+      API.setState({
+        settings: {
+          ...API.DEFAULT_SETTINGS,
+          householdType: "single",
+          partnerName: "Mom"
+        }
+      });
+      const state = API.getState();
+      assert.equal(state.settings.householdType, "single");
+      assert.equal(state.settings.partnerName, "Mom");
+    });
+    it("single user has empty children array", function () {
+      API.setState({
+        settings: {
+          ...API.DEFAULT_SETTINGS,
+          householdType: "single"
+        }
+      });
+      const state = API.getState();
+      assert.isArray(state.settings.children);
+      assert.equal(state.settings.children.length, 0);
+    });
+  });
+
+  describe("Household Type: couple settings", function () {
+    beforeEach();
+    it("couple can have a partner name", function () {
+      API.setState({
+        settings: {
+          ...API.DEFAULT_SETTINGS,
+          householdType: "couple",
+          partnerName: "Jane"
+        }
+      });
+      const state = API.getState();
+      assert.equal(state.settings.householdType, "couple");
+      assert.equal(state.settings.partnerName, "Jane");
+    });
+    it("couple has empty children array", function () {
+      API.setState({
+        settings: {
+          ...API.DEFAULT_SETTINGS,
+          householdType: "couple",
+          partnerName: "Jane"
+        }
+      });
+      const state = API.getState();
+      assert.isArray(state.settings.children);
+      assert.equal(state.settings.children.length, 0);
+    });
+  });
+
+  describe("Household Type: family settings", function () {
+    beforeEach();
+    it("family can have partner and children", function () {
+      API.setState({
+        settings: {
+          ...API.DEFAULT_SETTINGS,
+          householdType: "family",
+          partnerName: "Jane",
+          children: ["Alice", "Bob"]
+        }
+      });
+      const state = API.getState();
+      assert.equal(state.settings.householdType, "family");
+      assert.equal(state.settings.partnerName, "Jane");
+      assert.equal(state.settings.children.length, 2);
+    });
+  });
+
+  describe("Placeholder: empty partner uses fallback", function () {
+    beforeEach();
+    it("uses 'Next of Kin' when partner is empty", function () {
+      API.setState({
+        settings: {
+          ...API.DEFAULT_SETTINGS,
+          householdType: "single",
+          partnerName: ""
+        }
+      });
+      assert.equal(API.replacePlaceholders("For {partner}"), "For Next of Kin");
+    });
+    it("uses actual partner name when set", function () {
+      API.setState({
+        settings: {
+          ...API.DEFAULT_SETTINGS,
+          householdType: "couple",
+          partnerName: "Jane"
+        }
+      });
+      assert.equal(API.replacePlaceholders("For {partner}"), "For Jane");
+    });
+  });
+
+  describe("Placeholder: empty children removes placeholders", function () {
+    beforeEach();
+    it("removes {firstChild} when no children", function () {
+      API.setState({
+        settings: {
+          ...API.DEFAULT_SETTINGS,
+          householdType: "single",
+          children: []
+        }
+      });
+      assert.equal(API.replacePlaceholders("{firstChild} certificate"), " certificate");
+    });
+    it("removes {children} when no children", function () {
+      API.setState({
+        settings: {
+          ...API.DEFAULT_SETTINGS,
+          householdType: "single",
+          children: []
+        }
+      });
+      assert.equal(API.replacePlaceholders("Kids: {children}"), "Kids: ");
+    });
+  });
+
+  describe("Dynamic: child items skipped for single users", function () {
+    beforeEach();
+    it("skips {firstChild} items when no children configured", function () {
+      API.setState({
+        settings: {
+          ...API.DEFAULT_SETTINGS,
+          householdType: "single",
+          children: []
+        }
+      });
+      const cats = API.getProcessedCategories();
+      const identity = cats.find(c => c.id === "identity");
+      const birthCerts = identity.folders[0]; // Birth Certificates
+
+      // Should NOT have any items with {firstChild} placeholder
+      const childItems = birthCerts.items.filter(i => i.text.includes("{firstChild}"));
+      assert.equal(childItems.length, 0, "Should have no {firstChild} placeholders");
+    });
+    it("includes {firstChild} items when children are configured", function () {
+      API.setState({
+        settings: {
+          ...API.DEFAULT_SETTINGS,
+          householdType: "family",
+          children: ["Alice"]
+        }
+      });
+      const cats = API.getProcessedCategories();
+      const identity = cats.find(c => c.id === "identity");
+      const birthCerts = identity.folders[0];
+
+      // With a single child, items keep {firstChild} placeholder (replaced at render time)
+      // The key behavior is that the items are NOT skipped
+      const childItems = birthCerts.items.filter(i => i.text.includes("{firstChild}"));
+      assert.ok(childItems.length > 0, "Should have {firstChild} items when one child is configured");
+    });
+  });
+
+  describe("Dynamic: 'Additional children' item handling", function () {
+    beforeEach();
+    it("skips 'Additional children' item when no children", function () {
+      API.setState({
+        settings: {
+          ...API.DEFAULT_SETTINGS,
+          householdType: "single",
+          children: []
+        }
+      });
+      const cats = API.getProcessedCategories();
+      const identity = cats.find(c => c.id === "identity");
+      const birthCerts = identity.folders[0];
+
+      const additionalItem = birthCerts.items.find(i => i.text.includes("Additional children"));
+      assert.notOk(additionalItem, "Should not have 'Additional children' item");
+    });
+    it("skips 'Additional children' item when multiple children", function () {
+      API.setState({
+        settings: {
+          ...API.DEFAULT_SETTINGS,
+          householdType: "family",
+          children: ["Alice", "Bob"]
+        }
+      });
+      const cats = API.getProcessedCategories();
+      const identity = cats.find(c => c.id === "identity");
+      const birthCerts = identity.folders[0];
+
+      const additionalItem = birthCerts.items.find(i => i.text.includes("Additional children"));
+      assert.notOk(additionalItem, "Should not have 'Additional children' item when multiple children");
+    });
+  });
+
+  describe("Household Type: export includes householdType", function () {
+    beforeEach();
+    it("includes householdType in exported settings", function () {
+      API.setState({
+        settings: {
+          ...API.DEFAULT_SETTINGS,
+          householdType: "family",
+          partnerName: "Jane",
+          children: ["Alice"]
+        }
+      });
+      const exported = API.doExportAllData();
+      assert.ok(exported.settings, "Should have settings in export");
+      assert.equal(exported.settings.householdType, "family");
+      assert.equal(exported.settings.partnerName, "Jane");
+      assert.deepEqual(exported.settings.children, ["Alice"]);
+    });
+  });
+
+  describe("Household Type: import preserves householdType", function () {
+    beforeEach();
+    it("imports householdType from JSON", function () {
+      const importData = JSON.stringify({
+        settings: {
+          householdType: "couple",
+          partnerName: "Imported Partner",
+          children: []
+        }
+      });
+      API.doImportData(importData);
+      const state = API.getState();
+      assert.equal(state.settings.householdType, "couple");
+      assert.equal(state.settings.partnerName, "Imported Partner");
     });
   });
 

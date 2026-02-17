@@ -17,10 +17,11 @@
 
   // === DEFAULT SETTINGS ===
   const DEFAULT_SETTINGS = {
-    familyName: "My Family",
+    familyName: "My Vault",
     primaryUserName: "Primary User",
-    partnerName: "Partner",
-    children: ["Child"],
+    partnerName: "",
+    children: [],
+    householdType: "single", // "single" | "couple" | "family"
     bankAccounts: [
       { name: "Primary Checking", type: "checking" },
       { name: "Primary Savings", type: "savings" },
@@ -71,6 +72,7 @@
   let customItemModalOpen = null; // { catId, folderIdx } for adding new custom item
   let categoryQuickLinkModalOpen = null; // { catId } for adding quick link to category
   let urlFieldsInEditMode = {}; // { "field-{fieldId}": true } for tracking URL fields being edited
+  let householdSwitchConfirm = null; // { fromType, toType } for confirming household type switch
 
   function saveData(key, data) {
     chrome.storage.local.set({ [key]: data });
@@ -93,6 +95,20 @@
     currentTheme = result[STORAGE_KEYS.theme] || settings.theme || "dark";
     customItems = result[STORAGE_KEYS.customItems] || {};
     categoryQuickLinks = result[STORAGE_KEYS.categoryQuickLinks] || {};
+
+    // Migration: ensure householdType is set for existing users
+    if (!settings.householdType) {
+      // Infer household type from existing data
+      if (settings.children && settings.children.length > 0 && settings.children[0]) {
+        settings.householdType = "family";
+      } else if (settings.partnerName && settings.partnerName !== "Partner") {
+        settings.householdType = "couple";
+      } else {
+        settings.householdType = "single";
+      }
+      saveData(STORAGE_KEYS.settings, settings);
+    }
+
     applyTheme(currentTheme);
     render();
   });
@@ -126,15 +142,16 @@
     let result = text
       .replace(/\{familyName\}/g, settings.familyName)
       .replace(/\{primaryUser\}/g, settings.primaryUserName)
-      .replace(/\{partner\}/g, settings.partnerName);
+      .replace(/\{partner\}/g, settings.partnerName || 'Next of Kin');
 
     // Handle children references
     if (settings.children && settings.children.length > 0) {
-      result = result.replace(/\{firstChild\}/g, settings.children[0] || 'Child');
+      result = result.replace(/\{firstChild\}/g, settings.children[0]);
       result = result.replace(/\{children\}/g, settings.children.join(', '));
     } else {
-      result = result.replace(/\{firstChild\}/g, 'Child');
-      result = result.replace(/\{children\}/g, 'Children');
+      // Remove child placeholders if no children
+      result = result.replace(/\{firstChild\}/g, '');
+      result = result.replace(/\{children\}/g, '');
     }
 
     return result;
@@ -155,7 +172,7 @@
   }
 
   function buildProcessedCategories() {
-    const children = settings.children || ['Child'];
+    const children = settings.children || [];
     const bankAccounts = settings.bankAccounts || [];
 
     return CATEGORIES.map(cat => {
@@ -163,6 +180,10 @@
         let newItems = [];
 
         folder.items.forEach(item => {
+          // Skip child-specific items if no children
+          if (item.text.includes('{firstChild}') && children.length === 0) {
+            return; // Skip this item entirely
+          }
           // Check if this is a child-specific item that should be expanded for all children
           if (item.text.includes('{firstChild}') && children.length > 1) {
             // Create an item for each child
@@ -176,6 +197,8 @@
             });
           } else if (item.text.includes('Additional children') && children.length > 1) {
             // Skip this item if we already have multiple children listed
+          } else if (item.text.includes('Additional children') && children.length === 0) {
+            // Skip "Additional children" item if no children at all
           } else {
             newItems.push(item);
           }
@@ -361,38 +384,82 @@
 
   // === RENDER SETUP WIZARD ===
   function renderSetupWizard() {
-    const steps = [
+    // Build steps dynamically based on household type
+    const baseSteps = [
       {
-        title: "Welcome to Family Life Vault",
+        id: "welcome",
+        title: "Welcome to Life Vault",
         subtitle: "Let's set up your personal vault in just a few steps",
         fields: []
       },
       {
-        title: "Family Information",
-        subtitle: "What should we call your family?",
+        id: "household",
+        title: "Your Household",
+        subtitle: "Tell us about your household so we can personalize your experience",
+        type: "household"
+      },
+      {
+        id: "basic",
+        title: "Basic Information",
+        subtitle: "What should we call your vault?",
         fields: [
-          { id: "familyName", label: "Family Name", placeholder: "e.g., Smith Family", hint: "This will appear as the title of your vault" },
-          { id: "primaryUserName", label: "Primary User Name", placeholder: "e.g., John", hint: "The main person organizing this vault" }
+          { id: "familyName", label: "Vault Name", placeholder: "e.g., Smith Family or My Vault", hint: "This will appear as the title of your vault" },
+          { id: "primaryUserName", label: "Your Name", placeholder: "e.g., John", hint: "The main person organizing this vault" }
         ]
-      },
-      {
-        title: "Partner Information",
-        subtitle: "Who is your partner or next of kin?",
-        fields: [
-          { id: "partnerName", label: "Partner's Name", placeholder: "e.g., Jane", hint: "Your spouse, partner, or primary beneficiary" }
-        ]
-      },
-      {
-        title: "Children",
-        subtitle: "Add your children (you can add more later)",
-        type: "children"
-      },
-      {
-        title: "You're All Set!",
-        subtitle: "You can always update these settings later",
-        type: "complete"
       }
     ];
+
+    // Add beneficiary step for single users
+    const beneficiaryStep = {
+      id: "beneficiary",
+      title: "Primary Beneficiary",
+      subtitle: "Who should have access to this information if needed?",
+      fields: [
+        { id: "partnerName", label: "Beneficiary's Name", placeholder: "e.g., Parent, Sibling, or Friend", hint: "The person who would need access to your documents" }
+      ]
+    };
+
+    // Add partner step for couples and families
+    const partnerStep = {
+      id: "partner",
+      title: "Partner Information",
+      subtitle: "Who is your partner or next of kin?",
+      fields: [
+        { id: "partnerName", label: "Partner's Name", placeholder: "e.g., Jane", hint: "Your spouse, partner, or primary beneficiary" }
+      ]
+    };
+
+    // Add children step for families
+    const childrenStep = {
+      id: "children",
+      title: "Children",
+      subtitle: "Add your children (you can add more later)",
+      type: "children"
+    };
+
+    const completeStep = {
+      id: "complete",
+      title: "You're All Set!",
+      subtitle: "You can always update these settings later",
+      type: "complete"
+    };
+
+    // Build the steps array based on household type
+    let steps = [...baseSteps];
+    if (settings.householdType === "single") {
+      steps.push(beneficiaryStep);
+    } else if (settings.householdType === "couple" || settings.householdType === "family") {
+      steps.push(partnerStep);
+    }
+    if (settings.householdType === "family") {
+      steps.push(childrenStep);
+    }
+    steps.push(completeStep);
+
+    // Ensure currentSetupStep doesn't exceed steps array (can happen if user changes household type)
+    if (currentSetupStep >= steps.length) {
+      currentSetupStep = steps.length - 1;
+    }
 
     const step = steps[currentSetupStep];
     let html = `<div class="setup-wizard">
@@ -408,6 +475,29 @@
     html += `</div>
         <h1 class="setup-title">${step.title}</h1>
         <p class="setup-subtitle">${step.subtitle}</p>`;
+
+    if (step.type === 'household') {
+      html += `<div class="setup-field">
+        <div class="household-options">
+          <button class="household-option${settings.householdType === 'single' ? ' active' : ''}" data-action="select-household" data-type="single">
+            <div class="household-icon">👤</div>
+            <div class="household-label">Single</div>
+            <div class="household-desc">Just me managing my documents</div>
+          </button>
+          <button class="household-option${settings.householdType === 'couple' ? ' active' : ''}" data-action="select-household" data-type="couple">
+            <div class="household-icon">👫</div>
+            <div class="household-label">Couple</div>
+            <div class="household-desc">Me and my partner</div>
+          </button>
+          <button class="household-option${settings.householdType === 'family' ? ' active' : ''}" data-action="select-household" data-type="family">
+            <div class="household-icon">👨‍👩‍👧‍👦</div>
+            <div class="household-label">Family</div>
+            <div class="household-desc">Partner and children</div>
+          </button>
+        </div>
+        <div class="setup-hint" style="margin-top:16px">You can change this anytime in settings</div>
+      </div>`;
+    }
 
     if (step.fields && step.fields.length > 0) {
       step.fields.forEach(field => {
@@ -425,28 +515,43 @@
         <label class="setup-label">Children's Names</label>
         <div class="children-list" id="setup-children-list">`;
 
-      (settings.children || ['']).forEach((child, i) => {
-        html += `<div class="child-item">
-          <input class="setup-input" type="text" data-child-index="${i}" value="${escAttr(child)}" placeholder="Child's name">
-          ${settings.children.length > 1 ? `<button class="child-remove" data-action="remove-child" data-child-index="${i}">&times;</button>` : ''}
-        </div>`;
-      });
+      const childrenList = settings.children && settings.children.length > 0 ? settings.children : [];
+      if (childrenList.length === 0) {
+        html += `<div class="setup-hint" style="color:#94A3B8;padding:12px 0">No children added yet. Click the button below to add a child, or continue without adding any.</div>`;
+      } else {
+        childrenList.forEach((child, i) => {
+          html += `<div class="child-item">
+            <input class="setup-input" type="text" data-child-index="${i}" value="${escAttr(child)}" placeholder="Child's name">
+            <button class="child-remove" data-action="remove-child" data-child-index="${i}">&times;</button>
+          </div>`;
+        });
+      }
 
       html += `</div>
-        <button class="add-child-btn" data-action="add-child">+ Add Another Child</button>
-        <div class="setup-hint">You can add more children or remove them later in settings</div>
+        <button class="add-child-btn" data-action="add-child">+ Add Child</button>
+        <div class="setup-hint">You can skip this step or add children later in settings</div>
       </div>`;
     }
 
     if (step.type === 'complete') {
+      const householdLabels = { single: '👤 Single', couple: '👫 Couple', family: '👨‍👩‍👧‍👦 Family' };
+      const childrenList = (settings.children || []).filter(c => c);
       html += `<div style="background:rgba(52,211,153,0.1);border:1px solid rgba(52,211,153,0.3);border-radius:12px;padding:20px;margin:20px 0">
-        <div style="color:#6EE7B7;font-weight:700;margin-bottom:8px">\u2713 Setup Summary</div>
+        <div style="color:#6EE7B7;font-weight:700;margin-bottom:8px">✓ Setup Summary</div>
         <div style="color:#CBD5E1;font-size:13px;line-height:1.6">
-          <strong>Family:</strong> ${escAttr(settings.familyName)}<br>
+          <strong>Vault Name:</strong> ${escAttr(settings.familyName)}<br>
           <strong>Primary User:</strong> ${escAttr(settings.primaryUserName)}<br>
-          <strong>Partner:</strong> ${escAttr(settings.partnerName)}<br>
-          <strong>Children:</strong> ${settings.children.filter(c => c).join(', ') || 'None'}
-        </div>
+          <strong>Household:</strong> ${householdLabels[settings.householdType] || 'Single'}`;
+      if (settings.householdType === 'single') {
+        html += `<br><strong>Primary Beneficiary:</strong> ${escAttr(settings.partnerName) || 'Not specified'}`;
+      }
+      if (settings.householdType === 'couple' || settings.householdType === 'family') {
+        html += `<br><strong>Partner:</strong> ${escAttr(settings.partnerName) || 'Not specified'}`;
+      }
+      if (settings.householdType === 'family') {
+        html += `<br><strong>Children:</strong> ${childrenList.length > 0 ? childrenList.join(', ') : 'None'}`;
+      }
+      html += `</div>
       </div>`;
     }
 
@@ -471,54 +576,90 @@
 
   // === RENDER SETTINGS MODAL ===
   function renderSettingsModal() {
+    const showPartner = settings.householdType === 'couple' || settings.householdType === 'family';
+    const showBeneficiary = settings.householdType === 'single';
+    const showChildren = settings.householdType === 'family';
+
     let html = `<div class="modal-overlay" data-action="close-modal-overlay">
       <div class="modal settings-modal" data-modal-inner="true" style="max-width:700px">
         <div class="modal-header">
-          <div class="modal-title">\u2699\uFE0F Settings</div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <div class="modal-title">⚙️ Settings</div>
+            <div style="font-size:11px;color:#6EE7B7;background:rgba(52,211,153,0.15);padding:4px 10px;border-radius:12px">✓ Auto-saves</div>
+          </div>
           <button class="modal-close" data-action="close-settings">&times;</button>
         </div>
         <div class="modal-body">
 
           <div class="tpl-section">
-            <div class="tpl-section-title">Family Information</div>
-            <div class="tpl-field">
-              <label class="tpl-label">Family Name</label>
-              <input class="tpl-input" id="settings-familyName" type="text" value="${escAttr(settings.familyName)}" placeholder="e.g., Smith Family">
-            </div>
-            <div class="tpl-field">
-              <label class="tpl-label">Primary User Name</label>
-              <input class="tpl-input" id="settings-primaryUserName" type="text" value="${escAttr(settings.primaryUserName)}" placeholder="e.g., John">
-              <div class="tpl-hint">This is you - the main person organizing the vault</div>
-            </div>
-            <div class="tpl-field">
-              <label class="tpl-label">Partner's Name</label>
-              <input class="tpl-input" id="settings-partnerName" type="text" value="${escAttr(settings.partnerName)}" placeholder="e.g., Jane">
-              <div class="tpl-hint">Your spouse, partner, or primary beneficiary</div>
+            <div class="tpl-section-title">Household Type</div>
+            <div class="tpl-hint" style="margin-bottom:12px">This affects which sections are shown throughout the vault</div>
+            <div class="household-options-settings">
+              <button class="household-option-sm${settings.householdType === 'single' ? ' active' : ''}" data-action="settings-household" data-type="single">
+                <span>👤</span> Single
+              </button>
+              <button class="household-option-sm${settings.householdType === 'couple' ? ' active' : ''}" data-action="settings-household" data-type="couple">
+                <span>👫</span> Couple
+              </button>
+              <button class="household-option-sm${settings.householdType === 'family' ? ' active' : ''}" data-action="settings-household" data-type="family">
+                <span>👨‍👩‍👧‍👦</span> Family
+              </button>
             </div>
           </div>
 
           <div class="tpl-section">
-            <div class="tpl-section-title">Children</div>
-            <div class="children-list" id="settings-children-list">`;
-
-    (settings.children || []).forEach((child, i) => {
-      html += `<div class="child-item">
-        <input class="tpl-input" type="text" data-settings-child-index="${i}" value="${escAttr(child)}" placeholder="Child's name">
-        ${settings.children.length > 1 ? `<button class="child-remove" data-action="settings-remove-child" data-child-index="${i}">&times;</button>` : ''}
-      </div>`;
-    });
-
-    html += `</div>
-            <button class="add-child-btn" data-action="settings-add-child">+ Add Another Child</button>
+            <div class="tpl-section-title">Basic Information</div>
+            <div class="tpl-field">
+              <label class="tpl-label">Vault Name</label>
+              <input class="tpl-input" id="settings-familyName" type="text" value="${escAttr(settings.familyName)}" placeholder="e.g., Smith Family or My Vault">
+            </div>
+            <div class="tpl-field">
+              <label class="tpl-label">Your Name</label>
+              <input class="tpl-input" id="settings-primaryUserName" type="text" value="${escAttr(settings.primaryUserName)}" placeholder="e.g., John">
+              <div class="tpl-hint">The main person organizing this vault</div>
+            </div>
+            ${showBeneficiary ? `<div class="tpl-field">
+              <label class="tpl-label">Primary Beneficiary</label>
+              <input class="tpl-input" id="settings-partnerName" type="text" value="${escAttr(settings.partnerName)}" placeholder="e.g., Parent, Sibling, or Friend">
+              <div class="tpl-hint">The person who would need access to your documents</div>
+            </div>` : ''}
+            ${showPartner ? `<div class="tpl-field">
+              <label class="tpl-label">Partner's Name</label>
+              <input class="tpl-input" id="settings-partnerName" type="text" value="${escAttr(settings.partnerName)}" placeholder="e.g., Jane">
+              <div class="tpl-hint">Your spouse, partner, or primary beneficiary</div>
+            </div>` : ''}
           </div>
 
+          ${showChildren ? `<div class="tpl-section">
+            <div class="tpl-section-title">Children</div>
+            <div class="children-list" id="settings-children-list">` : ''}`;
+
+    if (showChildren) {
+      const childrenList = settings.children || [];
+      if (childrenList.length === 0) {
+        html += `<div class="tpl-hint" style="padding:8px 0;color:#94A3B8">No children added. Click the button below to add a child.</div>`;
+      } else {
+        childrenList.forEach((child, i) => {
+          html += `<div class="child-item">
+            <input class="tpl-input" type="text" data-settings-child-index="${i}" value="${escAttr(child)}" placeholder="Child's name">
+            <button class="child-remove" data-action="settings-remove-child" data-child-index="${i}">&times;</button>
+          </div>`;
+        });
+      }
+
+      html += `</div>
+            <button class="add-child-btn" data-action="settings-add-child">+ Add Child</button>
+          </div>`;
+    }
+
+    html += `
           <div class="tpl-section">
             <div class="tpl-section-title">Bank Accounts</div>
             <div class="tpl-hint" style="margin-bottom:12px">Customize the bank account names used throughout the vault</div>
             <div class="bank-list" id="settings-bank-list">`;
 
-    (settings.bankAccounts || []).forEach((bank, i) => {
-      html += `<div class="bank-item">
+      (settings.bankAccounts || []).forEach((bank, i) => {
+        html += `<div class="bank-item">
         <input class="tpl-input" type="text" data-settings-bank-index="${i}" data-field="name" value="${escAttr(bank.name)}" placeholder="Account name">
         <select class="tpl-input" style="width:150px" data-settings-bank-index="${i}" data-field="type">
           <option value="checking" ${bank.type === 'checking' ? 'selected' : ''}>Checking</option>
@@ -530,9 +671,9 @@
         </select>
         <button class="remove-item-btn" data-action="settings-remove-bank" data-bank-index="${i}">&times;</button>
       </div>`;
-    });
+      });
 
-    html += `</div>
+      html += `</div>
             <button class="add-item-btn" data-action="settings-add-bank">+ Add Bank Account</button>
           </div>
 
@@ -541,15 +682,15 @@
             <div class="tpl-hint" style="margin-bottom:12px">Add links to important documents (Notion pages, Google Drive folders, etc.)</div>
             <div class="link-list" id="settings-link-list">`;
 
-    (settings.quickLinks || []).forEach((link, i) => {
-      html += `<div class="link-item">
+      (settings.quickLinks || []).forEach((link, i) => {
+        html += `<div class="link-item">
         <input class="tpl-input" type="text" data-settings-link-index="${i}" data-field="label" value="${escAttr(link.label)}" placeholder="Link label">
         <input class="tpl-input" type="text" data-settings-link-index="${i}" data-field="url" value="${escAttr(link.url)}" placeholder="URL">
         <button class="remove-item-btn" data-action="settings-remove-link" data-link-index="${i}">&times;</button>
       </div>`;
-    });
+      });
 
-    html += `</div>
+      html += `</div>
             <button class="add-item-btn" data-action="settings-add-link">+ Add Quick Link</button>
           </div>
 
@@ -581,29 +722,28 @@
             </div>
           </div>
 
-          <div style="display:flex;gap:8px;margin-top:24px">
-            <button class="save-btn" data-action="save-settings">Save Settings</button>
-            <button class="export-btn" data-action="close-settings">Cancel</button>
+          <div style="display:flex;justify-content:center;margin-top:24px">
+            <button class="save-btn" data-action="close-settings" style="min-width:200px">Done</button>
           </div>
         </div>
       </div>
     </div>`;
 
-    return html;
-  }
+      return html;
+    }
 
-  // === RENDER HELP MODAL ===
-  function renderHelpModal() {
-    const sections = [
-      { id: "overview", label: "Overview", icon: "\uD83C\uDFE0" },
-      { id: "getting-started", label: "Getting Started", icon: "\uD83D\uDE80" },
-      { id: "categories", label: "Categories Guide", icon: "\uD83D\uDCC2" },
-      { id: "features", label: "Features", icon: "\u2728" },
-      { id: "tips", label: "Tips & Best Practices", icon: "\uD83D\uDCA1" },
-      { id: "faq", label: "FAQ", icon: "\u2753" }
-    ];
+    // === RENDER HELP MODAL ===
+    function renderHelpModal() {
+      const sections = [
+        { id: "overview", label: "Overview", icon: "\uD83C\uDFE0" },
+        { id: "getting-started", label: "Getting Started", icon: "\uD83D\uDE80" },
+        { id: "categories", label: "Categories Guide", icon: "\uD83D\uDCC2" },
+        { id: "features", label: "Features", icon: "\u2728" },
+        { id: "tips", label: "Tips & Best Practices", icon: "\uD83D\uDCA1" },
+        { id: "faq", label: "FAQ", icon: "\u2753" }
+      ];
 
-    let html = `<div class="modal-overlay" data-action="close-modal-overlay">
+      let html = `<div class="modal-overlay" data-action="close-modal-overlay">
       <div class="modal help-modal" data-modal-inner="true" style="max-width:900px;max-height:85vh">
         <div class="modal-header">
           <div class="modal-title">\u2753 Life Vault Help Guide</div>
@@ -616,54 +756,54 @@
             <input class="tpl-input" type="text" id="help-search-input" placeholder="Search help..." value="${escAttr(helpSearchQuery)}" style="margin-bottom:16px;font-size:13px">
             <div class="help-nav" style="display:flex;flex-direction:column;gap:4px">`;
 
-    sections.forEach(section => {
-      const isActive = helpActiveSection === section.id;
-      html += `<button class="help-nav-item${isActive ? ' active' : ''}" data-action="help-set-section" data-section="${section.id}" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:none;background:${isActive ? 'var(--accent-primary)' : 'transparent'};color:${isActive ? 'white' : 'var(--text-secondary)'};border-radius:8px;cursor:pointer;font-size:13px;text-align:left;transition:all 0.2s">
+      sections.forEach(section => {
+        const isActive = helpActiveSection === section.id;
+        html += `<button class="help-nav-item${isActive ? ' active' : ''}" data-action="help-set-section" data-section="${section.id}" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:none;background:${isActive ? 'var(--accent-primary)' : 'transparent'};color:${isActive ? 'white' : 'var(--text-secondary)'};border-radius:8px;cursor:pointer;font-size:13px;text-align:left;transition:all 0.2s">
         <span>${section.icon}</span>
         <span>${section.label}</span>
       </button>`;
-    });
+      });
 
-    html += `</div>
+      html += `</div>
           </div>
 
           <!-- Main Content -->
           <div class="help-main" style="flex:1;overflow-y:auto;padding-right:8px">`;
 
-    // Render content based on active section
-    switch (helpActiveSection) {
-      case "overview":
-        html += renderHelpOverview();
-        break;
-      case "getting-started":
-        html += renderHelpGettingStarted();
-        break;
-      case "categories":
-        html += renderHelpCategories();
-        break;
-      case "features":
-        html += renderHelpFeatures();
-        break;
-      case "tips":
-        html += renderHelpTips();
-        break;
-      case "faq":
-        html += renderHelpFAQ();
-        break;
-      default:
-        html += renderHelpOverview();
-    }
+      // Render content based on active section
+      switch (helpActiveSection) {
+        case "overview":
+          html += renderHelpOverview();
+          break;
+        case "getting-started":
+          html += renderHelpGettingStarted();
+          break;
+        case "categories":
+          html += renderHelpCategories();
+          break;
+        case "features":
+          html += renderHelpFeatures();
+          break;
+        case "tips":
+          html += renderHelpTips();
+          break;
+        case "faq":
+          html += renderHelpFAQ();
+          break;
+        default:
+          html += renderHelpOverview();
+      }
 
-    html += `</div>
+      html += `</div>
         </div>
       </div>
     </div>`;
 
-    return html;
-  }
+      return html;
+    }
 
-  function renderHelpOverview() {
-    return `
+    function renderHelpOverview() {
+      return `
       <div class="help-section">
         <h2 style="font-size:20px;font-weight:700;color:var(--text-primary);margin-bottom:16px">\uD83D\uDEE1\uFE0F Welcome to Life Vault</h2>
         <p style="color:var(--text-secondary);line-height:1.7;margin-bottom:20px">
@@ -699,10 +839,10 @@
           </div>
         </div>
       </div>`;
-  }
+    }
 
-  function renderHelpGettingStarted() {
-    return `
+    function renderHelpGettingStarted() {
+      return `
       <div class="help-section">
         <h2 style="font-size:20px;font-weight:700;color:var(--text-primary);margin-bottom:16px">\uD83D\uDE80 Getting Started</h2>
 
@@ -740,25 +880,25 @@
           </div>
         </div>
       </div>`;
-  }
-
-  function renderHelpCategories() {
-    const cats = getProcessedCategories();
-    const searchLower = helpSearchQuery.toLowerCase();
-
-    // Helper to get resources for a category
-    function getResourcesForCategory(catId) {
-      return HELP_RESOURCES.find(r => r.id === catId) || null;
     }
 
-    // Helper to render resources section
-    function renderCategoryResources(cat) {
-      const resourceCat = getResourcesForCategory(cat.id);
-      if (!resourceCat || !resourceCat.resources || resourceCat.resources.length === 0) {
-        return '';
+    function renderHelpCategories() {
+      const cats = getProcessedCategories();
+      const searchLower = helpSearchQuery.toLowerCase();
+
+      // Helper to get resources for a category
+      function getResourcesForCategory(catId) {
+        return HELP_RESOURCES.find(r => r.id === catId) || null;
       }
 
-      return `
+      // Helper to render resources section
+      function renderCategoryResources(cat) {
+        const resourceCat = getResourcesForCategory(cat.id);
+        if (!resourceCat || !resourceCat.resources || resourceCat.resources.length === 0) {
+          return '';
+        }
+
+        return `
         <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-subtle)">
           <div style="font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:8px">\uD83D\uDCDA Resources & Guides:</div>
           <p style="font-size:12px;color:var(--text-secondary);line-height:1.5;margin-bottom:12px;padding:10px;background:${cat.color}08;border-left:3px solid ${cat.color};border-radius:0 8px 8px 0">
@@ -766,11 +906,11 @@
           </p>
           <div style="display:flex;flex-direction:column;gap:10px">
             ${resourceCat.resources.map((res, ri) => {
-        const videoKey = cat.id + '-' + ri;
-        const isVideoOpen = helpActiveResourceVideo === videoKey;
-        const ytSearchUrl = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(res.searchQuery || res.title);
-        if (res.type === 'video') {
-          return `
+          const videoKey = cat.id + '-' + ri;
+          const isVideoOpen = helpActiveResourceVideo === videoKey;
+          const ytSearchUrl = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(res.searchQuery || res.title);
+          if (res.type === 'video') {
+            return `
                   <div class="help-resource-video-card" style="border:1px solid rgba(239,68,68,0.2);border-radius:10px;overflow:hidden">
                     <button data-action="help-toggle-video" data-video-key="${videoKey}" style="width:100%;display:flex;gap:12px;align-items:center;padding:12px 14px;border:none;background:linear-gradient(135deg,rgba(239,68,68,0.1),rgba(239,68,68,0.05));cursor:pointer;text-align:left">
                       <div style="width:36px;height:36px;border-radius:8px;background:rgba(239,68,68,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0">
@@ -798,8 +938,8 @@
                       </div>
                     ` : ''}
                   </div>`;
-        } else {
-          return `
+          } else {
+            return `
                   <a href="${escAttr(res.url)}" target="_blank" rel="noopener" class="help-resource-article-card" style="display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid rgba(52,211,153,0.2);border-radius:10px;background:linear-gradient(135deg,rgba(52,211,153,0.08),rgba(52,211,153,0.03));text-decoration:none;transition:all 0.2s">
                     <div style="width:36px;height:36px;border-radius:8px;background:rgba(52,211,153,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0">
                       <span style="font-size:18px">\uD83D\uDCDD</span>
@@ -810,13 +950,13 @@
                       <div style="font-size:10px;color:#6EE7B7;font-weight:600;margin-top:6px">Read Article \u2197</div>
                     </div>
                   </a>`;
-        }
-      }).join('')}
+          }
+        }).join('')}
           </div>
         </div>`;
-    }
+      }
 
-    return `
+      return `
       <div class="help-section">
         <h2 style="font-size:20px;font-weight:700;color:var(--text-primary);margin-bottom:16px">\uD83D\uDCC2 Categories Guide</h2>
         <p style="color:var(--text-secondary);line-height:1.6;margin-bottom:20px">
@@ -825,15 +965,15 @@
 
         <div style="display:flex;flex-direction:column;gap:12px">
           ${cats.filter(cat => {
-      if (!helpSearchQuery) return true;
-      return replacePlaceholders(cat.name).toLowerCase().includes(searchLower) ||
-        replacePlaceholders(cat.description).toLowerCase().includes(searchLower);
-    }).map(cat => {
-      const isExpanded = helpExpandedCategories[cat.id];
-      const prog = getCatProgress(cat);
-      const resourceCat = getResourcesForCategory(cat.id);
-      const hasResources = resourceCat && resourceCat.resources && resourceCat.resources.length > 0;
-      return `
+        if (!helpSearchQuery) return true;
+        return replacePlaceholders(cat.name).toLowerCase().includes(searchLower) ||
+          replacePlaceholders(cat.description).toLowerCase().includes(searchLower);
+      }).map(cat => {
+        const isExpanded = helpExpandedCategories[cat.id];
+        const prog = getCatProgress(cat);
+        const resourceCat = getResourcesForCategory(cat.id);
+        const hasResources = resourceCat && resourceCat.resources && resourceCat.resources.length > 0;
+        return `
               <div id="help-cat-${cat.id}" style="background:var(--bg-glass);border:1px solid ${cat.color}30;border-radius:12px;overflow:hidden">
                 <button data-action="help-toggle-category" data-cat-id="${cat.id}" style="width:100%;display:flex;align-items:center;gap:12px;padding:16px;border:none;background:transparent;cursor:pointer;text-align:left">
                   <div style="width:44px;height:44px;border-radius:10px;background:${cat.color}20;display:flex;align-items:center;justify-content:center;font-size:22px">${cat.icon}</div>
@@ -854,13 +994,13 @@
                   </div>
                 ` : ''}
               </div>`;
-    }).join('')}
+      }).join('')}
         </div>
       </div>`;
-  }
+    }
 
-  function renderHelpFeatures() {
-    return `
+    function renderHelpFeatures() {
+      return `
       <div class="help-section">
         <h2 style="font-size:20px;font-weight:700;color:var(--text-primary);margin-bottom:16px">\u2728 Features</h2>
 
@@ -881,8 +1021,8 @@
           </div>
 
           <div style="background:var(--bg-glass);border:1px solid var(--border-subtle);border-radius:12px;padding:20px">
-            <h4 style="font-size:15px;font-weight:600;color:#F472B6;margin-bottom:8px">\uD83D\uDC65 Next of Kin Instructions</h4>
-            <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">Each folder includes special instructions for ${escAttr(settings.partnerName)}. Click the "Instructions for Next of Kin" button to view or share these.</p>
+            <h4 style="font-size:15px;font-weight:600;color:#F472B6;margin-bottom:8px">👥 Next of Kin Instructions</h4>
+            <p style="font-size:13px;color:var(--text-secondary);line-height:1.6">Each folder includes special instructions for ${settings.partnerName ? escAttr(settings.partnerName) : 'your next of kin'}. Click the "Instructions for Next of Kin" button to view or share these.</p>
           </div>
 
           <div style="background:var(--bg-glass);border:1px solid var(--border-subtle);border-radius:12px;padding:20px">
@@ -896,10 +1036,10 @@
           </div>
         </div>
       </div>`;
-  }
+    }
 
-  function renderHelpTips() {
-    return `
+    function renderHelpTips() {
+      return `
       <div class="help-section">
         <h2 style="font-size:20px;font-weight:700;color:var(--text-primary);margin-bottom:16px">\uD83D\uDCA1 Tips & Best Practices</h2>
 
@@ -930,246 +1070,246 @@
           </div>
         </div>
       </div>`;
-  }
-
-  // === HELP RESOURCES DATA ===
-  const HELP_RESOURCES = [
-    {
-      id: "identity",
-      title: "Identity & Personal Documents",
-      icon: "\uD83E\uDEAA",
-      color: "#6366F1",
-      context: "Your vault highlights the critical need for original and certified copies of birth certificates and passports.",
-      resources: [
-        { type: "video", title: "How to Organize Critical Documents", desc: "A quick visual guide on using a system like the Nokbox to separate daily vs. safe-storage documents.", searchQuery: "How to Organize Critical Documents Nokbox" },
-        { type: "article", title: "How to Order Vital Records Online", desc: "Use this to order extra certified copies mentioned in your Birth Certificates folder without visiting a government office.", url: "https://www.vitalchek.com" },
-        { type: "article", title: "Replace or Renew a Passport (US State Dept)", desc: "Critical for the 'Check expiry' item in your Passports folder.", url: "https://travel.state.gov/content/travel/en/passports.html" }
-      ]
-    },
-    {
-      id: "legal",
-      title: "Legal & Estate Planning",
-      icon: "\u2696\uFE0F",
-      color: "#A78BFA",
-      context: "Your vault distinguishes between a Will (probate) and a Trust (avoids probate).",
-      resources: [
-        { type: "video", title: "Estate Planning Made Simple \u2014 Free Starter Kit", desc: "Explains the core difference between a Will and a Trust, helping you decide if you need the Living Trust folder populated.", searchQuery: "Estate Planning Made Simple free starter kit walkthrough" },
-        { type: "article", title: "Revocable Trust vs. Will: A Guide", desc: "Understand why your vault prioritizes transferring real property into the trust to avoid probate courts.", url: "https://www.investopedia.com/ask/answers/071615/what-difference-between-revocable-trust-and-living-trust.asp" },
-        { type: "article", title: "Power of Attorney vs. Healthcare Proxy", desc: "Clarifies the two distinct POAs listed in your Power of Attorney folder.", url: "https://www.investopedia.com/terms/p/powerofattorney.asp" }
-      ]
-    },
-    {
-      id: "financial",
-      title: "Financial Accounts",
-      icon: "\uD83C\uDFE6",
-      color: "#34D399",
-      context: "The Beneficiary Designations Master List is identified as a critical failure point in your data.",
-      resources: [
-        { type: "video", title: "How to Organize Your Financial Life", desc: "Covers consolidating accounts to make the Checking Accounts folder manageable for your executor.", searchQuery: "How to Organize Your Financial Life" },
-        { type: "article", title: "Why Beneficiary Designations Override Your Will", desc: "Essential reading for your Beneficiary Master List folder. Explains why a will doesn't control your 401(k) or life insurance.", url: "https://trustandwill.com/learn/beneficiary-designation-vs-will" }
-      ]
-    },
-    {
-      id: "insurance",
-      title: "Insurance",
-      icon: "\uD83D\uDEE1\uFE0F",
-      color: "#F472B6",
-      context: "Your vault notes the specific 60-day deadline for COBRA and the need to file claims.",
-      resources: [
-        { type: "article", title: "How to Claim Life Insurance Benefits: 6 Steps", desc: "Print this for the Life Insurance folder. It details the exact documents (death certificate, policy bond) needed.", url: "https://www.investopedia.com/search?q=how-to-file-life-insurance-claim" },
-        { type: "article", title: "COBRA Continuation Coverage Guide (Dept of Labor)", desc: "Critical for the Health Insurance folder. Explains the strict timeline for a surviving spouse to keep health coverage.", url: "https://www.dol.gov/general/topic/health-plans/cobra" }
-      ]
-    },
-    {
-      id: "property",
-      title: "Property & Assets",
-      icon: "\uD83C\uDFE0",
-      color: "#FBBF24",
-      context: "You have a specific folder for Gold & Valuables and Home Deed.",
-      resources: [
-        { type: "video", title: "Create a Home Inventory for Insurance", desc: "Shows how to video-log your Gold, Jewelry & Valuables folder items for insurance claims.", searchQuery: "Create Home Inventory for Insurance" },
-        { type: "article", title: "How to Create a Home Inventory", desc: "Use the spreadsheet method mentioned here to fill out your Primary Home folder details.", url: "https://www.iii.org/article/how-create-home-inventory" }
-      ]
-    },
-    {
-      id: "taxes",
-      title: "Taxes",
-      icon: "\uD83D\uDCB0",
-      color: "#EF4444",
-      context: "Your vault flags the final tax return as a critical task for the executor.",
-      resources: [
-        { type: "article", title: "Filing a Final Federal Tax Return for a Deceased Person (IRS)", desc: "The definitive guide for the US Tax Records folder. Covers who signs the return and how to claim refunds.", url: "https://www.irs.gov/individuals/file-the-final-income-tax-returns-of-a-deceased-person" },
-        { type: "article", title: "TurboTax Guide: Death in the Family", desc: "A more user-friendly explanation of Income in Respect of a Decedent mentioned in your International Tax Records folder.", url: "https://turbotax.intuit.com/tax-tips/family/death-in-the-family/L5albFXM4" }
-      ]
-    },
-    {
-      id: "digital",
-      title: "Digital Life",
-      icon: "\uD83D\uDCBB",
-      color: "#3B82F6",
-      context: "Your data emphasizes the Password Manager as the key to everything.",
-      resources: [
-        { type: "video", title: "1Password vs Bitwarden for Families", desc: "Helps you choose the tool for your Device Access folder. Focuses on the Emergency Access features mentioned in your checklist.", searchQuery: "1Password vs Bitwarden for Families" },
-        { type: "article", title: "Digital Estate Planning: How to Organize Your Digital Assets", desc: "Step-by-step on naming a Digital Executor for your Social Media folder.", url: "https://www.investopedia.com/fa-one-thing-digital-estate-planning-11695074" }
-      ]
-    },
-    {
-      id: "health",
-      title: "Medical & Health",
-      icon: "\uD83C\uDFE5",
-      color: "#10B981",
-      context: "Organizing Family Doctor Lists and Vaccination Records.",
-      resources: [
-        { type: "video", title: "Organizing Medical Records for Caregivers", desc: "Practical tips on creating the Medical History Summary for the Medical History folder.", searchQuery: "Organizing Medical Records for Caregivers" },
-        { type: "article", title: "Organizing Important Documents", desc: "Good checklist for what to put in the Family Doctor folder, specifically regarding HIPAA Release Forms.", url: "https://www.nia.nih.gov/health/advance-care-planning/getting-your-affairs-order-checklist-documents-prepare-future" }
-      ]
-    },
-    {
-      id: "children",
-      title: "Family & Childcare",
-      icon: "\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67\u200D\uD83D\uDC66",
-      color: "#EC4899",
-      context: "The Education Planning folder mentions 529 Successor Owners, a technical but critical detail.",
-      resources: [
-        { type: "article", title: "What Happens When a 529 Account Owner Dies?", desc: "Explains exactly how to assign the Successor Owner mentioned in your Education Savings folder so the account doesn't freeze.", url: "https://www.collegeadvantage.com/blog/blog-detail/posts/2019/09/12/what-happens-when-a-529-account-owner-dies" },
-        { type: "article", title: "Letter of Instruction for Guardians", desc: "Use this to write the Letter of wishes in your Guardianship folder.", url: "https://sshklawyers.com/how-to-write-a-letter-of-intent-for-your-childs-guardian" }
-      ]
-    },
-    {
-      id: "work",
-      title: "Employment & Income",
-      icon: "\uD83D\uDCBC",
-      color: "#8B5CF6",
-      context: "Your vault lists RSU vesting and Employer death benefits as key items.",
-      resources: [
-        { type: "article", title: "What Happens to RSUs and Stock Options When You Die?", desc: "Critical reading for the Employer Stock & RSUs folder. Explains why unvested RSUs might be lost and how to check your plan document.", url: "https://www.investopedia.com/terms/i/inherited-stock.asp" },
-        { type: "article", title: "Checklist: When an Employee Dies", desc: "Shows you what the employer's HR side looks like, helping your Current Employment folder instructions be more precise.", url: "https://hrdailyadvisor.hci.org/2019/11/06/checklist-what-to-do-when-an-employee-dies" }
-      ]
-    },
-    {
-      id: "debts",
-      title: "Debts & Obligations",
-      icon: "\uD83D\uDCB3",
-      color: "#F59E0B",
-      context: "The instruction that a mortgage does NOT need to be paid off is a specific legal protection.",
-      resources: [
-        { type: "article", title: "What Happens to Debt When You Die?", desc: "Validate the instructions in your Other Loans folder. Confirms that family members usually don't inherit debt unless they co-signed.", url: "https://www.consumerfinance.gov/ask-cfpb/does-a-persons-debt-go-away-when-they-die-en-1463" }
-      ]
-    },
-    {
-      id: "home",
-      title: "Home & Utilities",
-      icon: "\uD83C\uDFE1",
-      color: "#06B6D4",
-      context: "Managing Keys & Access Codes and Auto-pay.",
-      resources: [
-        { type: "article", title: "The Ultimate Moving & Utilities Checklist", desc: "While written for moving, this is the best type of list to populate your Utilities & Services folder with account numbers and providers.", url: "https://www.northamerican.com/moving-resources/checklists/utility-checklist/1000" }
-      ]
-    },
-    {
-      id: "emergency",
-      title: "Emergency Contacts",
-      icon: "\uD83D\uDCDE",
-      color: "#EF4444",
-      context: "The First 48 Hours calls are critical.",
-      resources: [
-        { type: "article", title: "The ICE (In Case of Emergency) Binder Checklist", desc: "Use this to verify you haven't missed anyone in your Emergency Contacts folder.", url: "https://www.snyderlawpc.com/building-your-emergency-binder-the-most-important-packet-your-family-will-ever-hold/" }
-      ]
-    },
-    {
-      id: "after-death",
-      title: "After Death Playbook",
-      icon: "\uD83D\uDCD6",
-      color: "#DC2626",
-      context: "The First 48 Hours and First 30 Days checklists are your vault's action section.",
-      resources: [
-        { type: "article", title: "What to Do in the First 48 Hours After a Death", desc: "Print this and place it at the very front of the First 48 Hours Checklist folder. It covers immediate steps like securing the home.", url: "https://www.joincake.com/blog/what-to-do-when-someone-dies/" },
-        { type: "article", title: "After a Death Occurs \u2014 A Checklist", desc: "A concise PDF checklist that mirrors your First 30 Days Action Plan folder perfectly.", url: "https://www.aarp.org/home-family/friends-family/info-2020/when-loved-one-dies-702.html" }
-      ]
-    },
-    {
-      id: "wishes",
-      title: "Legacy & Memories",
-      icon: "\uD83D\uDC9C",
-      color: "#A855F7",
-      context: "Will and Legacy Letters are unique items in your vault.",
-      resources: [
-        { type: "video", title: "Writing a Legacy Letter", desc: "Visual guidance on writing an will or legacy letter for your loved ones.", searchQuery: "Writing a Legacy Letter Will" },
-        { type: "article", title: "How to Write an Will", desc: "Provides prompts and examples to help you write the Letter of values mentioned in your Ethical Will folder.", url: "https://www.investopedia.com/terms/l/last-will-and-testament.asp" }
-      ]
     }
-  ];
 
-
-  function renderHelpFAQ() {
-    const faqs = [
+    // === HELP RESOURCES DATA ===
+    const HELP_RESOURCES = [
       {
-        q: "Where is my data stored?",
-        a: "All your data is stored locally in your browser's Chrome storage. It never leaves your device unless you explicitly export it."
+        id: "identity",
+        title: "Identity & Personal Documents",
+        icon: "\uD83E\uDEAA",
+        color: "#6366F1",
+        context: "Your vault highlights the critical need for original and certified copies of birth certificates and passports.",
+        resources: [
+          { type: "video", title: "How to Organize Critical Documents", desc: "A quick visual guide on using a system like the Nokbox to separate daily vs. safe-storage documents.", searchQuery: "How to Organize Critical Documents Nokbox" },
+          { type: "article", title: "How to Order Vital Records Online", desc: "Use this to order extra certified copies mentioned in your Birth Certificates folder without visiting a government office.", url: "https://www.vitalchek.com" },
+          { type: "article", title: "Replace or Renew a Passport (US State Dept)", desc: "Critical for the 'Check expiry' item in your Passports folder.", url: "https://travel.state.gov/content/travel/en/passports.html" }
+        ]
       },
       {
-        q: "Is my data secure?",
-        a: "Yes. Your data stays entirely on your device and is never sent to any server. However, anyone with access to your Chrome browser can view it, so ensure your computer is password-protected."
+        id: "legal",
+        title: "Legal & Estate Planning",
+        icon: "\u2696\uFE0F",
+        color: "#A78BFA",
+        context: "Your vault distinguishes between a Will (probate) and a Trust (avoids probate).",
+        resources: [
+          { type: "video", title: "Estate Planning Made Simple \u2014 Free Starter Kit", desc: "Explains the core difference between a Will and a Trust, helping you decide if you need the Living Trust folder populated.", searchQuery: "Estate Planning Made Simple free starter kit walkthrough" },
+          { type: "article", title: "Revocable Trust vs. Will: A Guide", desc: "Understand why your vault prioritizes transferring real property into the trust to avoid probate courts.", url: "https://www.investopedia.com/ask/answers/071615/what-difference-between-revocable-trust-and-living-trust.asp" },
+          { type: "article", title: "Power of Attorney vs. Healthcare Proxy", desc: "Clarifies the two distinct POAs listed in your Power of Attorney folder.", url: "https://www.investopedia.com/terms/p/powerofattorney.asp" }
+        ]
       },
       {
-        q: "Can I use Life Vault on multiple devices?",
-        a: "Currently, Life Vault stores data locally per browser. To use on another device, export your data and import it on the new device."
+        id: "financial",
+        title: "Financial Accounts",
+        icon: "\uD83C\uDFE6",
+        color: "#34D399",
+        context: "The Beneficiary Designations Master List is identified as a critical failure point in your data.",
+        resources: [
+          { type: "video", title: "How to Organize Your Financial Life", desc: "Covers consolidating accounts to make the Checking Accounts folder manageable for your executor.", searchQuery: "How to Organize Your Financial Life" },
+          { type: "article", title: "Why Beneficiary Designations Override Your Will", desc: "Essential reading for your Beneficiary Master List folder. Explains why a will doesn't control your 401(k) or life insurance.", url: "https://trustandwill.com/learn/beneficiary-designation-vs-will" }
+        ]
       },
       {
-        q: "What happens if I uninstall the extension?",
-        a: "Your data will be permanently deleted when you uninstall. Always export a backup (Settings > Export Data) before uninstalling to preserve your information."
+        id: "insurance",
+        title: "Insurance",
+        icon: "\uD83D\uDEE1\uFE0F",
+        color: "#F472B6",
+        context: "Your vault notes the specific 60-day deadline for COBRA and the need to file claims.",
+        resources: [
+          { type: "article", title: "How to Claim Life Insurance Benefits: 6 Steps", desc: "Print this for the Life Insurance folder. It details the exact documents (death certificate, policy bond) needed.", url: "https://www.investopedia.com/search?q=how-to-file-life-insurance-claim" },
+          { type: "article", title: "COBRA Continuation Coverage Guide (Dept of Labor)", desc: "Critical for the Health Insurance folder. Explains the strict timeline for a surviving spouse to keep health coverage.", url: "https://www.dol.gov/general/topic/health-plans/cobra" }
+        ]
       },
       {
-        q: "How do I share information with my partner?",
-        a: "You can export individual items as PDF or Markdown files, or export all data as JSON. Share these files securely with your partner."
+        id: "property",
+        title: "Property & Assets",
+        icon: "\uD83C\uDFE0",
+        color: "#FBBF24",
+        context: "You have a specific folder for Gold & Valuables and Home Deed.",
+        resources: [
+          { type: "video", title: "Create a Home Inventory for Insurance", desc: "Shows how to video-log your Gold, Jewelry & Valuables folder items for insurance claims.", searchQuery: "Create Home Inventory for Insurance" },
+          { type: "article", title: "How to Create a Home Inventory", desc: "Use the spreadsheet method mentioned here to fill out your Primary Home folder details.", url: "https://www.iii.org/article/how-create-home-inventory" }
+        ]
       },
       {
-        q: "What are the priority levels?",
-        a: "CRITICAL items are urgent and should be completed first (e.g., will, life insurance). IMPORTANT items are necessary but less urgent. OPTIONAL items are helpful but not essential."
+        id: "taxes",
+        title: "Taxes",
+        icon: "\uD83D\uDCB0",
+        color: "#EF4444",
+        context: "Your vault flags the final tax return as a critical task for the executor.",
+        resources: [
+          { type: "article", title: "Filing a Final Federal Tax Return for a Deceased Person (IRS)", desc: "The definitive guide for the US Tax Records folder. Covers who signs the return and how to claim refunds.", url: "https://www.irs.gov/individuals/file-the-final-income-tax-returns-of-a-deceased-person" },
+          { type: "article", title: "TurboTax Guide: Death in the Family", desc: "A more user-friendly explanation of Income in Respect of a Decedent mentioned in your International Tax Records folder.", url: "https://turbotax.intuit.com/tax-tips/family/death-in-the-family/L5albFXM4" }
+        ]
       },
       {
-        q: "What is 'Next of Kin Instructions'?",
-        a: "Each folder includes special guidance written for your loved ones explaining what to do with that information after you're gone. Click the button in any folder to view or share these instructions."
+        id: "digital",
+        title: "Digital Life",
+        icon: "\uD83D\uDCBB",
+        color: "#3B82F6",
+        context: "Your data emphasizes the Password Manager as the key to everything.",
+        resources: [
+          { type: "video", title: "1Password vs Bitwarden for Families", desc: "Helps you choose the tool for your Device Access folder. Focuses on the Emergency Access features mentioned in your checklist.", searchQuery: "1Password vs Bitwarden for Families" },
+          { type: "article", title: "Digital Estate Planning: How to Organize Your Digital Assets", desc: "Step-by-step on naming a Digital Executor for your Social Media folder.", url: "https://www.investopedia.com/fa-one-thing-digital-estate-planning-11695074" }
+        ]
       },
       {
-        q: "Can I add my own items to a folder?",
-        a: "Yes! Click the '+ Add Custom Item' button at the bottom of any folder to add your own items with custom priorities."
+        id: "health",
+        title: "Medical & Health",
+        icon: "\uD83C\uDFE5",
+        color: "#10B981",
+        context: "Organizing Family Doctor Lists and Vaccination Records.",
+        resources: [
+          { type: "video", title: "Organizing Medical Records for Caregivers", desc: "Practical tips on creating the Medical History Summary for the Medical History folder.", searchQuery: "Organizing Medical Records for Caregivers" },
+          { type: "article", title: "Organizing Important Documents", desc: "Good checklist for what to put in the Family Doctor folder, specifically regarding HIPAA Release Forms.", url: "https://www.nia.nih.gov/health/advance-care-planning/getting-your-affairs-order-checklist-documents-prepare-future" }
+        ]
       },
       {
-        q: "Can I delete items I don't need?",
-        a: "You can delete custom items you've added. Built-in items cannot be deleted, but you can leave them unchecked if they don't apply to your situation."
+        id: "children",
+        title: "Family & Childcare",
+        icon: "\uD83D\uDC68\u200D\uD83D\uDC69\u200D\uD83D\uDC67\u200D\uD83D\uDC66",
+        color: "#EC4899",
+        context: "The Education Planning folder mentions 529 Successor Owners, a technical but critical detail.",
+        resources: [
+          { type: "article", title: "What Happens When a 529 Account Owner Dies?", desc: "Explains exactly how to assign the Successor Owner mentioned in your Education Savings folder so the account doesn't freeze.", url: "https://www.collegeadvantage.com/blog/blog-detail/posts/2019/09/12/what-happens-when-a-529-account-owner-dies" },
+          { type: "article", title: "Letter of Instruction for Guardians", desc: "Use this to write the Letter of wishes in your Guardianship folder.", url: "https://sshklawyers.com/how-to-write-a-letter-of-intent-for-your-childs-guardian" }
+        ]
       },
       {
-        q: "What happens if I reset my progress?",
-        a: "The Reset button only clears your checkmarks. Your filled-in details and custom items are preserved."
+        id: "work",
+        title: "Employment & Income",
+        icon: "\uD83D\uDCBC",
+        color: "#8B5CF6",
+        context: "Your vault lists RSU vesting and Employer death benefits as key items.",
+        resources: [
+          { type: "article", title: "What Happens to RSUs and Stock Options When You Die?", desc: "Critical reading for the Employer Stock & RSUs folder. Explains why unvested RSUs might be lost and how to check your plan document.", url: "https://www.investopedia.com/terms/i/inherited-stock.asp" },
+          { type: "article", title: "Checklist: When an Employee Dies", desc: "Shows you what the employer's HR side looks like, helping your Current Employment folder instructions be more precise.", url: "https://hrdailyadvisor.hci.org/2019/11/06/checklist-what-to-do-when-an-employee-dies" }
+        ]
       },
       {
-        q: "How do I change my family information?",
-        a: "Go to Settings (gear icon in the header) to update family names, children, bank accounts, and other personalized information."
+        id: "debts",
+        title: "Debts & Obligations",
+        icon: "\uD83D\uDCB3",
+        color: "#F59E0B",
+        context: "The instruction that a mortgage does NOT need to be paid off is a specific legal protection.",
+        resources: [
+          { type: "article", title: "What Happens to Debt When You Die?", desc: "Validate the instructions in your Other Loans folder. Confirms that family members usually don't inherit debt unless they co-signed.", url: "https://www.consumerfinance.gov/ask-cfpb/does-a-persons-debt-go-away-when-they-die-en-1463" }
+        ]
       },
       {
-        q: "How often should I update my vault?",
-        a: "Review your vault at least once a year, or whenever you experience major life changes like moving, changing jobs, having children, or opening new accounts."
+        id: "home",
+        title: "Home & Utilities",
+        icon: "\uD83C\uDFE1",
+        color: "#06B6D4",
+        context: "Managing Keys & Access Codes and Auto-pay.",
+        resources: [
+          { type: "article", title: "The Ultimate Moving & Utilities Checklist", desc: "While written for moving, this is the best type of list to populate your Utilities & Services folder with account numbers and providers.", url: "https://www.northamerican.com/moving-resources/checklists/utility-checklist/1000" }
+        ]
       },
       {
-        q: "Where should I start?",
-        a: "Start with the CRITICAL items in Identity & Docs and Legal categories. These are the most important documents your family would need immediately. Use the priority filter to focus on critical items first."
+        id: "emergency",
+        title: "Emergency Contacts",
+        icon: "\uD83D\uDCDE",
+        color: "#EF4444",
+        context: "The First 48 Hours calls are critical.",
+        resources: [
+          { type: "article", title: "The ICE (In Case of Emergency) Binder Checklist", desc: "Use this to verify you haven't missed anyone in your Emergency Contacts folder.", url: "https://www.snyderlawpc.com/building-your-emergency-binder-the-most-important-packet-your-family-will-ever-hold/" }
+        ]
       },
       {
-        q: "How do I print my information?",
-        a: "Open any item's details and click 'Export PDF' to generate a printable document. You can also export all data as JSON from Settings for a complete backup."
+        id: "after-death",
+        title: "After Death Playbook",
+        icon: "\uD83D\uDCD6",
+        color: "#DC2626",
+        context: "The First 48 Hours and First 30 Days checklists are your vault's action section.",
+        resources: [
+          { type: "article", title: "What to Do in the First 48 Hours After a Death", desc: "Print this and place it at the very front of the First 48 Hours Checklist folder. It covers immediate steps like securing the home.", url: "https://www.joincake.com/blog/what-to-do-when-someone-dies/" },
+          { type: "article", title: "After a Death Occurs \u2014 A Checklist", desc: "A concise PDF checklist that mirrors your First 30 Days Action Plan folder perfectly.", url: "https://www.aarp.org/home-family/friends-family/info-2020/when-loved-one-dies-702.html" }
+        ]
       },
       {
-        q: "What are Quick Links?",
-        a: "Quick Links (in Settings) let you save shortcuts to frequently used resources like your Google Drive, password manager, or financial institution websites for easy access."
-      },
-      {
-        q: "Is there a mobile app?",
-        a: "Life Vault is currently a Chrome extension only. For mobile access, export your data and store it in a secure cloud location you can access from any device."
+        id: "wishes",
+        title: "Legacy & Memories",
+        icon: "\uD83D\uDC9C",
+        color: "#A855F7",
+        context: "Will and Legacy Letters are unique items in your vault.",
+        resources: [
+          { type: "video", title: "Writing a Legacy Letter", desc: "Visual guidance on writing an will or legacy letter for your loved ones.", searchQuery: "Writing a Legacy Letter Will" },
+          { type: "article", title: "How to Write an Will", desc: "Provides prompts and examples to help you write the Letter of values mentioned in your Ethical Will folder.", url: "https://www.investopedia.com/terms/l/last-will-and-testament.asp" }
+        ]
       }
     ];
 
-    return `
+
+    function renderHelpFAQ() {
+      const faqs = [
+        {
+          q: "Where is my data stored?",
+          a: "All your data is stored locally in your browser's Chrome storage. It never leaves your device unless you explicitly export it."
+        },
+        {
+          q: "Is my data secure?",
+          a: "Yes. Your data stays entirely on your device and is never sent to any server. However, anyone with access to your Chrome browser can view it, so ensure your computer is password-protected."
+        },
+        {
+          q: "Can I use Life Vault on multiple devices?",
+          a: "Currently, Life Vault stores data locally per browser. To use on another device, export your data and import it on the new device."
+        },
+        {
+          q: "What happens if I uninstall the extension?",
+          a: "Your data will be permanently deleted when you uninstall. Always export a backup (Settings > Export Data) before uninstalling to preserve your information."
+        },
+        {
+          q: "How do I share information with my partner?",
+          a: "You can export individual items as PDF or Markdown files, or export all data as JSON. Share these files securely with your partner."
+        },
+        {
+          q: "What are the priority levels?",
+          a: "CRITICAL items are urgent and should be completed first (e.g., will, life insurance). IMPORTANT items are necessary but less urgent. OPTIONAL items are helpful but not essential."
+        },
+        {
+          q: "What is 'Next of Kin Instructions'?",
+          a: "Each folder includes special guidance written for your loved ones explaining what to do with that information after you're gone. Click the button in any folder to view or share these instructions."
+        },
+        {
+          q: "Can I add my own items to a folder?",
+          a: "Yes! Click the '+ Add Custom Item' button at the bottom of any folder to add your own items with custom priorities."
+        },
+        {
+          q: "Can I delete items I don't need?",
+          a: "You can delete custom items you've added. Built-in items cannot be deleted, but you can leave them unchecked if they don't apply to your situation."
+        },
+        {
+          q: "What happens if I reset my progress?",
+          a: "The Reset button only clears your checkmarks. Your filled-in details and custom items are preserved."
+        },
+        {
+          q: "How do I change my family information?",
+          a: "Go to Settings (gear icon in the header) to update family names, children, bank accounts, and other personalized information."
+        },
+        {
+          q: "How often should I update my vault?",
+          a: "Review your vault at least once a year, or whenever you experience major life changes like moving, changing jobs, having children, or opening new accounts."
+        },
+        {
+          q: "Where should I start?",
+          a: "Start with the CRITICAL items in Identity & Docs and Legal categories. These are the most important documents your family would need immediately. Use the priority filter to focus on critical items first."
+        },
+        {
+          q: "How do I print my information?",
+          a: "Open any item's details and click 'Export PDF' to generate a printable document. You can also export all data as JSON from Settings for a complete backup."
+        },
+        {
+          q: "What are Quick Links?",
+          a: "Quick Links (in Settings) let you save shortcuts to frequently used resources like your Google Drive, password manager, or financial institution websites for easy access."
+        },
+        {
+          q: "Is there a mobile app?",
+          a: "Life Vault is currently a Chrome extension only. For mobile access, export your data and store it in a secure cloud location you can access from any device."
+        }
+      ];
+
+      return `
       <div class="help-section">
         <h2 style="font-size:20px;font-weight:700;color:var(--text-primary);margin-bottom:16px">\u2753 Frequently Asked Questions</h2>
 
@@ -1182,15 +1322,15 @@
           `).join('')}
         </div>
       </div>`;
-  }
+    }
 
-  // === RENDER CUSTOM ITEM MODAL ===
-  function renderCustomItemModal() {
-    const { catId, folderIdx } = customItemModalOpen;
-    const cat = getProcessedCategories().find(c => c.id === catId);
-    const folder = cat ? cat.folders[folderIdx] : null;
+    // === RENDER CUSTOM ITEM MODAL ===
+    function renderCustomItemModal() {
+      const { catId, folderIdx } = customItemModalOpen;
+      const cat = getProcessedCategories().find(c => c.id === catId);
+      const folder = cat ? cat.folders[folderIdx] : null;
 
-    let html = `<div class="modal-overlay" data-action="close-modal-overlay">
+      let html = `<div class="modal-overlay" data-action="close-modal-overlay">
       <div class="modal" data-modal-inner="true" style="max-width:500px">
         <div class="modal-header">
           <div>
@@ -1240,15 +1380,15 @@
       </div>
     </div>`;
 
-    return html;
-  }
+      return html;
+    }
 
-  // === RENDER CATEGORY QUICK LINK MODAL ===
-  function renderCategoryQuickLinkModal() {
-    const { catId } = categoryQuickLinkModalOpen;
-    const cat = getProcessedCategories().find(c => c.id === catId);
+    // === RENDER CATEGORY QUICK LINK MODAL ===
+    function renderCategoryQuickLinkModal() {
+      const { catId } = categoryQuickLinkModalOpen;
+      const cat = getProcessedCategories().find(c => c.id === catId);
 
-    let html = `<div class="modal-overlay" data-action="close-modal-overlay">
+      let html = `<div class="modal-overlay" data-action="close-modal-overlay">
       <div class="modal" data-modal-inner="true" style="max-width:450px">
         <div class="modal-header">
           <div>
@@ -1279,26 +1419,82 @@
       </div>
     </div>`;
 
-    return html;
-  }
-
-  // === RENDER ===
-  function render() {
-    // Show setup wizard if not complete
-    if (!setupComplete) {
-      document.getElementById("app").innerHTML = renderSetupWizard();
-      return;
+      return html;
     }
 
-    const stats = getStats();
-    const overallProg = getOverallProgress();
-    const activeCat = getProcessedCategories().find(c => c.id === activeCategory);
+    // === RENDER HOUSEHOLD SWITCH CONFIRMATION MODAL ===
+    function renderHouseholdSwitchConfirmModal() {
+      const { fromType, toType } = householdSwitchConfirm;
+      const typeLabels = { single: 'Single', couple: 'Couple', family: 'Family' };
+      const typeIcons = { single: '👤', couple: '👫', family: '👨‍👩‍👧‍👦' };
 
-    let html = '';
+      let warningMessage = '';
+      let dataLoss = [];
 
-    // HEADER
-    html += `<div class="header"><div class="header-inner">`;
-    html += `<div class="logo-row">
+      // Determine what data will be lost
+      if (fromType === 'family' && (toType === 'single' || toType === 'couple')) {
+        const childCount = (settings.children || []).filter(c => c.trim()).length;
+        if (childCount > 0) {
+          dataLoss.push(`${childCount} ${childCount === 1 ? 'child' : 'children'}'s information`);
+        }
+      }
+
+      if (dataLoss.length > 0) {
+        warningMessage = `The following data will be permanently removed: <strong>${dataLoss.join(', ')}</strong>`;
+      }
+
+      let html = `<div class="modal-overlay">
+      <div class="modal" data-modal-inner="true" style="max-width:420px">
+        <div class="modal-header" style="background:rgba(239,68,68,0.1);border-bottom:1px solid rgba(239,68,68,0.2)">
+          <div class="modal-title" style="color:#FCA5A5">⚠️ Change Household Type?</div>
+        </div>
+        <div class="modal-body" style="text-align:center;padding:24px">
+          <div style="display:flex;justify-content:center;align-items:center;gap:16px;margin-bottom:20px">
+            <div style="background:var(--bg-tertiary);border:2px solid var(--border-subtle);border-radius:12px;padding:16px 20px;text-align:center">
+              <div style="font-size:28px">${typeIcons[fromType]}</div>
+              <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">${typeLabels[fromType]}</div>
+            </div>
+            <div style="font-size:20px;color:var(--text-dim)">→</div>
+            <div style="background:rgba(99,102,241,0.15);border:2px solid rgba(99,102,241,0.3);border-radius:12px;padding:16px 20px;text-align:center">
+              <div style="font-size:28px">${typeIcons[toType]}</div>
+              <div style="font-size:12px;color:var(--accent-primary);margin-top:4px">${typeLabels[toType]}</div>
+            </div>
+          </div>
+
+          <div style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);border-radius:10px;padding:14px;margin-bottom:20px">
+            <div style="font-size:13px;color:#FCA5A5;line-height:1.5">${warningMessage}</div>
+          </div>
+
+          <p style="font-size:12px;color:var(--text-tertiary);margin-bottom:20px">This action cannot be undone.</p>
+
+          <div style="display:flex;gap:10px;justify-content:center">
+            <button class="export-btn" data-action="cancel-household-switch" style="min-width:100px">Cancel</button>
+            <button class="save-btn" data-action="confirm-household-switch" style="background:linear-gradient(135deg,#EF4444,#DC2626);min-width:140px">Yes, Change</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+      return html;
+    }
+
+    // === RENDER ===
+    function render() {
+      // Show setup wizard if not complete
+      if (!setupComplete) {
+        document.getElementById("app").innerHTML = renderSetupWizard();
+        return;
+      }
+
+      const stats = getStats();
+      const overallProg = getOverallProgress();
+      const activeCat = getProcessedCategories().find(c => c.id === activeCategory);
+
+      let html = '';
+
+      // HEADER
+      html += `<div class="header"><div class="header-inner">`;
+      html += `<div class="logo-row">
         <div class="logo">\uD83D\uDEE1\uFE0F</div>
         <div><div class="title">${escAttr(settings.familyName)} Life Vault</div>
           <div class="subtitle">Everything ${escAttr(settings.partnerName)} needs, in one place. Built for your family.</div></div>
@@ -1312,50 +1508,50 @@
         </div>
       </div>`;
 
-    // Stats bar
-    html += `<div class="stats-bar">`;
-    html += progressRingSVG(overallProg, 56, 5, "#6366F1");
-    const statItems = [
-      { label: "Categories", value: getProcessedCategories().length, color: "#818CF8" },
-      { label: "Folders", value: stats.folders, color: "#A78BFA" },
-      { label: "Total Items", value: stats.total, color: "#F472B6" },
-      { label: "Completed", value: stats.done, color: "#34D399" },
-      { label: "Critical Done", value: `${stats.critDone}/${stats.critical}`, color: "#F87171" },
-    ];
-    html += `<div style="display:flex;gap:16px;flex-wrap:wrap;flex:1">`;
-    statItems.forEach(s => {
-      html += `<div class="stat"><div class="stat-value" style="color:${s.color}">${s.value}</div><div class="stat-label">${s.label}</div></div>`;
-    });
-    html += `</div>`;
+      // Stats bar
+      html += `<div class="stats-bar">`;
+      html += progressRingSVG(overallProg, 56, 5, "#6366F1");
+      const statItems = [
+        { label: "Categories", value: getProcessedCategories().length, color: "#818CF8" },
+        { label: "Folders", value: stats.folders, color: "#A78BFA" },
+        { label: "Total Items", value: stats.total, color: "#F472B6" },
+        { label: "Completed", value: stats.done, color: "#34D399" },
+        { label: "Critical Done", value: `${stats.critDone}/${stats.critical}`, color: "#F87171" },
+      ];
+      html += `<div style="display:flex;gap:16px;flex-wrap:wrap;flex:1">`;
+      statItems.forEach(s => {
+        html += `<div class="stat"><div class="stat-value" style="color:${s.color}">${s.value}</div><div class="stat-label">${s.label}</div></div>`;
+      });
+      html += `</div>`;
 
-    html += `<div class="action-bar">
+      html += `<div class="action-bar">
           <button class="reset-btn" data-action="reset-all">Reset</button>
         </div>`;
-    html += `</div>`; // stats-bar
+      html += `</div>`; // stats-bar
 
-    // Filters
-    html += `<div class="filters">`;
-    html += `<span style="font-size:11px;color:#64748B;font-weight:600;text-transform:uppercase">Filter:</span>`;
-    ["all", "critical", "important", "optional"].forEach(f => {
-      const active = filter === f;
-      const bg = active ? (f === "all" ? "#6366F1" : PRIORITY_COLORS[f]?.dot || "#6366F1") : "";
-      html += `<button class="filter-btn${active ? ' active' : ''}" style="${active ? 'background:' + bg : ''}" data-action="set-filter" data-filter="${f}">${f}</button>`;
-    });
-    html += `<input class="search-input" type="text" placeholder="Search items..." value="${escAttr(searchQuery)}" data-action="search-input" id="search-input">`;
-    html += `</div>`;
+      // Filters
+      html += `<div class="filters">`;
+      html += `<span style="font-size:11px;color:#64748B;font-weight:600;text-transform:uppercase">Filter:</span>`;
+      ["all", "critical", "important", "optional"].forEach(f => {
+        const active = filter === f;
+        const bg = active ? (f === "all" ? "#6366F1" : PRIORITY_COLORS[f]?.dot || "#6366F1") : "";
+        html += `<button class="filter-btn${active ? ' active' : ''}" style="${active ? 'background:' + bg : ''}" data-action="set-filter" data-filter="${f}">${f}</button>`;
+      });
+      html += `<input class="search-input" type="text" placeholder="Search items..." value="${escAttr(searchQuery)}" data-action="search-input" id="search-input">`;
+      html += `</div>`;
 
-    html += `</div></div>`; // header-inner, header
+      html += `</div></div>`; // header-inner, header
 
-    // MAIN
-    html += `<div class="main">`;
+      // MAIN
+      html += `<div class="main">`;
 
-    // SIDEBAR
-    html += `<div class="sidebar"><div class="sidebar-inner">`;
-    html += `<div class="sidebar-title">Categories (${getProcessedCategories().length})</div>`;
-    getProcessedCategories().forEach(cat => {
-      const prog = getCatProgress(cat);
-      const isActive = activeCategory === cat.id;
-      html += `<button class="cat-btn${isActive ? ' active' : ''}" style="${isActive ? 'background:linear-gradient(90deg,' + cat.color + '20,transparent);border-color:' + cat.color + '40' : ''}" data-action="select-category" data-cat-id="${cat.id}">
+      // SIDEBAR
+      html += `<div class="sidebar"><div class="sidebar-inner">`;
+      html += `<div class="sidebar-title">Categories (${getProcessedCategories().length})</div>`;
+      getProcessedCategories().forEach(cat => {
+        const prog = getCatProgress(cat);
+        const isActive = activeCategory === cat.id;
+        html += `<button class="cat-btn${isActive ? ' active' : ''}" style="${isActive ? 'background:linear-gradient(90deg,' + cat.color + '20,transparent);border-color:' + cat.color + '40' : ''}" data-action="select-category" data-cat-id="${cat.id}">
         <div class="cat-icon" style="background:${cat.color}20;border:1px solid ${cat.color}30">${cat.icon}</div>
         <div style="flex:1;min-width:0">
           <div class="cat-name" ${isActive ? ' style="color:var(--text-primary)"' : ''}>${escAttr(replacePlaceholders(cat.name))}</div>
@@ -1363,46 +1559,46 @@
         </div>
         <span class="cat-pct" style="color:${cat.color}">${Math.round(prog)}%</span>
       </button>`;
-    });
-    html += `</div></div>`;
+      });
+      html += `</div></div>`;
 
-    // DETAIL PANEL
-    html += `<div class="detail">`;
+      // DETAIL PANEL
+      html += `<div class="detail">`;
 
-    if (!activeCat) {
-      // DASHBOARD
-      html += `<div class="welcome-box">
+      if (!activeCat) {
+        // DASHBOARD
+        html += `<div class="welcome-box">
         <h2 style="font-size:18px;font-weight:800;color:var(--text-primary);margin-bottom:8px">Welcome to your Life Vault, ${escAttr(settings.primaryUserName)}</h2>
         <p style="font-size:13px;color:#94A3B8;line-height:1.6">This system ensures ${escAttr(settings.partnerName)} and your family have everything they need if you're not available.
         <strong style="color:#A5B4FC">${getProcessedCategories().length} color-coded categories</strong> and
         <strong style="color:#F9A8D4">${stats.folders} organized folders</strong> with <strong style="color:#6EE7B7">${stats.total} actionable items</strong>.
         Each item has a detail template page to fill in your specific information.</p>`;
 
-      // Quick links if configured
-      if (settings.quickLinks && settings.quickLinks.length > 0) {
-        html += `<div class="quick-links">`;
-        settings.quickLinks.forEach(link => {
-          html += `<a href="${escAttr(link.url)}" target="_blank" class="quick-link" style="color:#A5B4FC;border-color:rgba(165,180,252,0.2)">\uD83D\uDD17 ${escAttr(link.label)}</a>`;
-        });
+        // Quick links if configured
+        if (settings.quickLinks && settings.quickLinks.length > 0) {
+          html += `<div class="quick-links">`;
+          settings.quickLinks.forEach(link => {
+            html += `<a href="${escAttr(link.url)}" target="_blank" class="quick-link" style="color:#A5B4FC;border-color:rgba(165,180,252,0.2)">\uD83D\uDD17 ${escAttr(link.label)}</a>`;
+          });
+          html += `</div>`;
+        }
         html += `</div>`;
-      }
-      html += `</div>`;
 
-      html += `<div class="dashboard-grid">`;
-      getProcessedCategories().forEach(cat => {
-        const prog = getCatProgress(cat);
-        // Include custom items in the count
-        let totalItems = cat.folders.reduce((a, f) => a + f.items.length, 0);
-        let doneItems = cat.folders.reduce((a, f, fi) =>
-          a + f.items.filter((_, ii) => checkedItems[itemKey(cat.id, fi, ii)]).length, 0);
+        html += `<div class="dashboard-grid">`;
+        getProcessedCategories().forEach(cat => {
+          const prog = getCatProgress(cat);
+          // Include custom items in the count
+          let totalItems = cat.folders.reduce((a, f) => a + f.items.length, 0);
+          let doneItems = cat.folders.reduce((a, f, fi) =>
+            a + f.items.filter((_, ii) => checkedItems[itemKey(cat.id, fi, ii)]).length, 0);
 
-        // Add custom items
-        cat.folders.forEach((f, fi) => {
-          const folderCustomItems = getCustomItemsForFolder(cat.id, fi);
-          totalItems += folderCustomItems.length;
-          doneItems += folderCustomItems.filter(ci => checkedItems[customItemKey(cat.id, fi, ci.id)]).length;
-        });
-        html += `<div class="dash-card" data-action="select-category" data-cat-id="${cat.id}" data-hover-color="${cat.color}40">
+          // Add custom items
+          cat.folders.forEach((f, fi) => {
+            const folderCustomItems = getCustomItemsForFolder(cat.id, fi);
+            totalItems += folderCustomItems.length;
+            doneItems += folderCustomItems.filter(ci => checkedItems[customItemKey(cat.id, fi, ci.id)]).length;
+          });
+          html += `<div class="dash-card" data-action="select-category" data-cat-id="${cat.id}" data-hover-color="${cat.color}40">
           ${progressRingSVG(prog, 44, 4, cat.color)}
           <div style="flex:1">
             <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:2px">${cat.icon} ${escAttr(replacePlaceholders(cat.name))}</div>
@@ -1410,13 +1606,13 @@
             <div style="font-size:11px;color:#94A3B8;line-height:1.4">${escAttr(replacePlaceholders(cat.description).substring(0, 90))}...</div>
           </div>
         </div>`;
-      });
-      html += `</div>`;
-    } else {
-      // CATEGORY DETAIL VIEW
-      const prog = getCatProgress(activeCat);
-      const catQuickLinks = getCategoryQuickLinks(activeCat.id);
-      html += `<div class="cat-header" style="background:linear-gradient(135deg,${activeCat.color}15,transparent);border:1px solid ${activeCat.color}30">
+        });
+        html += `</div>`;
+      } else {
+        // CATEGORY DETAIL VIEW
+        const prog = getCatProgress(activeCat);
+        const catQuickLinks = getCategoryQuickLinks(activeCat.id);
+        html += `<div class="cat-header" style="background:linear-gradient(135deg,${activeCat.color}15,transparent);border:1px solid ${activeCat.color}30">
         <div style="display:flex;align-items:center;gap:10px">
           <div style="width:48px;height:48px;border-radius:12px;background:${activeCat.color}25;display:flex;align-items:center;justify-content:center;font-size:24px;border:2px solid ${activeCat.color}40">${activeCat.icon}</div>
           <div style="flex:1">
@@ -1443,29 +1639,29 @@
         </div>
       </div>`;
 
-      // FOLDERS
-      activeCat.folders.forEach((folder, fi) => {
-        const isOpen = activeFolder === fi;
-        const items = filteredFolderItems(folder);
+        // FOLDERS
+        activeCat.folders.forEach((folder, fi) => {
+          const isOpen = activeFolder === fi;
+          const items = filteredFolderItems(folder);
 
-        // Get custom items for this folder (filtered)
-        const folderCustomItems = getCustomItemsForFolder(activeCat.id, fi).filter(ci => {
-          if (filter !== "all" && ci.priority !== filter) return false;
-          if (searchQuery && !replacePlaceholders(ci.text).toLowerCase().includes(searchQuery.toLowerCase())) return false;
-          return true;
-        });
+          // Get custom items for this folder (filtered)
+          const folderCustomItems = getCustomItemsForFolder(activeCat.id, fi).filter(ci => {
+            if (filter !== "all" && ci.priority !== filter) return false;
+            if (searchQuery && !replacePlaceholders(ci.text).toLowerCase().includes(searchQuery.toLowerCase())) return false;
+            return true;
+          });
 
-        // Calculate progress including both regular and custom items
-        const totalItems = items.length + folderCustomItems.length;
-        let doneCount = items.filter(item => checkedItems[itemKey(activeCat.id, fi, item.ii)]).length;
-        doneCount += folderCustomItems.filter(ci => checkedItems[customItemKey(activeCat.id, fi, ci.id)]).length;
+          // Calculate progress including both regular and custom items
+          const totalItems = items.length + folderCustomItems.length;
+          let doneCount = items.filter(item => checkedItems[itemKey(activeCat.id, fi, item.ii)]).length;
+          doneCount += folderCustomItems.filter(ci => checkedItems[customItemKey(activeCat.id, fi, ci.id)]).length;
 
-        const foldProg = totalItems === 0 ? 0 : (doneCount / totalItems) * 100;
-        const dotColor = foldProg === 100 ? "#34D399" : foldProg > 0 ? activeCat.color : "rgba(255,255,255,0.15)";
-        const dotShadow = foldProg === 100 ? "box-shadow:0 0 8px rgba(52,211,153,0.5)" : "";
+          const foldProg = totalItems === 0 ? 0 : (doneCount / totalItems) * 100;
+          const dotColor = foldProg === 100 ? "#34D399" : foldProg > 0 ? activeCat.color : "rgba(255,255,255,0.15)";
+          const dotShadow = foldProg === 100 ? "box-shadow:0 0 8px rgba(52,211,153,0.5)" : "";
 
-        html += `<div class="folder-card${isOpen ? ' open' : ''}">`;
-        html += `<button class="folder-btn" data-action="toggle-folder" data-folder-idx="${fi}">
+          html += `<div class="folder-card${isOpen ? ' open' : ''}">`;
+          html += `<button class="folder-btn" data-action="toggle-folder" data-folder-idx="${fi}">
           <div class="dot" style="background:${dotColor};${dotShadow}"></div>
           <span class="folder-name"${isOpen ? ' style="color:var(--text-primary)"' : ''}>\uD83D\uDCC1 ${escAttr(replacePlaceholders(folder.name))}</span>
           <span class="folder-count">${doneCount}/${totalItems}</span>
@@ -1473,10 +1669,10 @@
           <span class="arrow">\u25BE</span>
         </button>`;
 
-        html += `<div class="folder-body">`;
+          html += `<div class="folder-body">`;
 
-        // Instructions
-        html += `<div class="inst-box" style="background:${activeCat.color}10;border:1px solid ${activeCat.color}20">
+          // Instructions
+          html += `<div class="inst-box" style="background:${activeCat.color}10;border:1px solid ${activeCat.color}20">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
             <div class="inst-label" style="color:${activeCat.color};margin-bottom:0">Instructions for You</div>
             <button class="context-help-btn" data-action="open-context-help" data-context-type="category" data-context-id="${activeCat.id}" style="font-size:11px;padding:2px 8px;background:${activeCat.color}20;color:${activeCat.color};border:none;border-radius:12px;cursor:pointer;display:flex;align-items:center;gap:4px">
@@ -1486,124 +1682,129 @@
           <div class="inst-text">${escAttr(replacePlaceholders(folder.instructions))}</div>
         </div>`;
 
-        // NOK toggle
-        const nokKey = `${activeCat.id}-${fi}`;
-        html += `<button class="nok-toggle" data-action="toggle-nok" data-nok-key="${nokKey}">${showNok[nokKey] ? '\u25BE' : '\u25B8'} Instructions for ${escAttr(settings.partnerName)} (Next of Kin)</button>`;
-        html += `<div class="nok-box${showNok[nokKey] ? ' show' : ''}"><div style="font-size:12px;color:#FBCFE8;line-height:1.5">${escAttr(replacePlaceholders(folder.nokInstructions))}</div></div>`;
+          // NOK toggle
+          const nokKey = `${activeCat.id}-${fi}`;
+          const nokName = settings.partnerName || 'Next of Kin';
+          html += `<button class="nok-toggle" data-action="toggle-nok" data-nok-key="${nokKey}">${showNok[nokKey] ? '▾' : '▸'} Instructions for ${escAttr(nokName)}</button>`;
+          html += `<div class="nok-box${showNok[nokKey] ? ' show' : ''}"><div style="font-size:12px;color:#FBCFE8;line-height:1.5">${escAttr(replacePlaceholders(folder.nokInstructions))}</div></div>`;
 
-        // Links
-        if (folder.existingLinks && folder.existingLinks.length > 0) {
-          html += `<div class="links-row">`;
-          folder.existingLinks.forEach(link => {
-            html += `<a href="${link.url}" target="_blank" class="link-chip">\uD83D\uDD17 ${escAttr(replacePlaceholders(link.label))}</a>`;
-          });
-          html += `</div>`;
-        }
+          // Links
+          if (folder.existingLinks && folder.existingLinks.length > 0) {
+            html += `<div class="links-row">`;
+            folder.existingLinks.forEach(link => {
+              html += `<a href="${link.url}" target="_blank" class="link-chip">\uD83D\uDD17 ${escAttr(replacePlaceholders(link.label))}</a>`;
+            });
+            html += `</div>`;
+          }
 
-        // Checklist items
-        items.forEach(item => {
-          const key = itemKey(activeCat.id, fi, item.ii);
-          const isDone = checkedItems[key];
-          const pri = PRIORITY_COLORS[item.priority];
-          const tplType = folder.templateType || "generic";
-          const tplK = templateKey(activeCat.id, fi, item.ii);
-          const hasTplData = templateData[tplK] && Object.keys(templateData[tplK]).length > 0;
+          // Checklist items
+          items.forEach(item => {
+            const key = itemKey(activeCat.id, fi, item.ii);
+            const isDone = checkedItems[key];
+            const pri = PRIORITY_COLORS[item.priority];
+            const tplType = folder.templateType || "generic";
+            const tplK = templateKey(activeCat.id, fi, item.ii);
+            const hasTplData = templateData[tplK] && Object.keys(templateData[tplK]).length > 0;
 
-          html += `<div class="check-item${isDone ? ' done' : ''}">
+            html += `<div class="check-item${isDone ? ' done' : ''}">
             <input type="checkbox" ${isDone ? 'checked' : ''} data-action="toggle-check" data-check-key="${escAttr(key)}">
             <span class="check-text${isDone ? ' done' : ''}">${escAttr(replacePlaceholders(item.text))}</span>
             <button class="detail-btn" style="${hasTplData ? 'background:rgba(52,211,153,0.15);border-color:rgba(52,211,153,0.3);color:#6EE7B7' : ''}" data-action="open-template" data-tpl-cat="${activeCat.id}" data-tpl-fi="${fi}" data-tpl-ii="${item.ii}" data-tpl-type="${tplType}" title="Fill in details for this item">${hasTplData ? '\u2713 Details' : '+ Details'}</button>
             <span class="priority-badge" style="background:${pri.dot}20;color:${pri.dot}">${pri.label}</span>
           </div>`;
-        });
+          });
 
-        // Custom checklist items (using already filtered folderCustomItems from above)
-        folderCustomItems.forEach(customItem => {
-          const customKey = customItemKey(activeCat.id, fi, customItem.id);
-          const isDone = checkedItems[customKey];
-          const pri = PRIORITY_COLORS[customItem.priority];
-          const customTplK = customTemplateKey(activeCat.id, fi, customItem.id);
-          const hasTplData = templateData[customTplK] && Object.keys(templateData[customTplK]).length > 0;
+          // Custom checklist items (using already filtered folderCustomItems from above)
+          folderCustomItems.forEach(customItem => {
+            const customKey = customItemKey(activeCat.id, fi, customItem.id);
+            const isDone = checkedItems[customKey];
+            const pri = PRIORITY_COLORS[customItem.priority];
+            const customTplK = customTemplateKey(activeCat.id, fi, customItem.id);
+            const hasTplData = templateData[customTplK] && Object.keys(templateData[customTplK]).length > 0;
 
-          html += `<div class="check-item custom-item${isDone ? ' done' : ''}">
+            html += `<div class="check-item custom-item${isDone ? ' done' : ''}">
             <input type="checkbox" ${isDone ? 'checked' : ''} data-action="toggle-check" data-check-key="${escAttr(customKey)}">
             <span class="check-text${isDone ? ' done' : ''}">${escAttr(replacePlaceholders(customItem.text))}</span>
             <button class="detail-btn" style="${hasTplData ? 'background:rgba(52,211,153,0.15);border-color:rgba(52,211,153,0.3);color:#6EE7B7' : ''}" data-action="open-custom-template" data-tpl-cat="${activeCat.id}" data-tpl-fi="${fi}" data-custom-id="${customItem.id}" title="Fill in details for this item">${hasTplData ? '\u2713 Details' : '+ Details'}</button>
             <span class="priority-badge" style="background:${pri.dot}20;color:${pri.dot}">${pri.label}</span>
             <button class="delete-custom-btn" data-action="delete-custom-item" data-cat="${activeCat.id}" data-fi="${fi}" data-custom-id="${customItem.id}" title="Delete this custom item">&times;</button>
           </div>`;
-        });
+          });
 
-        // Add custom item button
-        html += `<button class="add-custom-item-btn" data-action="open-custom-item-modal" data-cat="${activeCat.id}" data-fi="${fi}">
+          // Add custom item button
+          html += `<button class="add-custom-item-btn" data-action="open-custom-item-modal" data-cat="${activeCat.id}" data-fi="${fi}">
           <span class="add-icon">+</span> Add Custom Item
         </button>`;
 
-        html += `</div></div>`; // folder-body, folder-card
-      });
+          html += `</div></div>`; // folder-body, folder-card
+        });
+      }
+
+      html += `</div></div>`; // detail, main
+
+      // FOOTER
+      html += `<div class="footer"><p>${escAttr(settings.familyName)} Life Vault &middot; ${getProcessedCategories().length} Categories &middot; ${stats.folders} Folders &middot; ${stats.total} Items</p></div>`;
+
+      // MODALS
+      if (modalOpen) {
+        html += renderModal();
+      }
+
+      if (settingsModalOpen) {
+        html += renderSettingsModal();
+      }
+
+      if (helpModalOpen) {
+        html += renderHelpModal();
+      }
+
+      if (customItemModalOpen) {
+        html += renderCustomItemModal();
+      }
+
+      if (categoryQuickLinkModalOpen) {
+        html += renderCategoryQuickLinkModal();
+      }
+
+      if (householdSwitchConfirm) {
+        html += renderHouseholdSwitchConfirmModal();
+      }
+
+      document.getElementById("app").innerHTML = html;
+
+      // Re-focus search input and restore cursor position
+      const searchEl = document.getElementById("search-input");
+      if (searchEl && searchQuery) {
+        searchEl.focus();
+        searchEl.setSelectionRange(searchQuery.length, searchQuery.length);
+      }
     }
 
-    html += `</div></div>`; // detail, main
+    function renderModal() {
+      const { catId, folderIdx, itemIdx, templateType, isCustom, customItemId } = modalOpen;
+      const tpl = TEMPLATES[templateType];
+      if (!tpl) return '';
 
-    // FOOTER
-    html += `<div class="footer"><p>${escAttr(settings.familyName)} Life Vault &middot; ${getProcessedCategories().length} Categories &middot; ${stats.folders} Folders &middot; ${stats.total} Items</p></div>`;
+      const cat = getProcessedCategories().find(c => c.id === catId);
+      const folder = cat ? cat.folders[folderIdx] : null;
 
-    // MODALS
-    if (modalOpen) {
-      html += renderModal();
-    }
+      let item = null;
+      let tplK = '';
 
-    if (settingsModalOpen) {
-      html += renderSettingsModal();
-    }
+      if (isCustom && customItemId) {
+        // Custom item template
+        const folderCustomItems = getCustomItemsForFolder(catId, folderIdx);
+        item = folderCustomItems.find(ci => ci.id === customItemId);
+        tplK = customTemplateKey(catId, folderIdx, customItemId);
+      } else {
+        // Regular item template
+        item = folder ? folder.items[itemIdx] : null;
+        tplK = templateKey(catId, folderIdx, itemIdx);
+      }
 
-    if (helpModalOpen) {
-      html += renderHelpModal();
-    }
+      const savedData = templateData[tplK] || {};
 
-    if (customItemModalOpen) {
-      html += renderCustomItemModal();
-    }
-
-    if (categoryQuickLinkModalOpen) {
-      html += renderCategoryQuickLinkModal();
-    }
-
-    document.getElementById("app").innerHTML = html;
-
-    // Re-focus search input and restore cursor position
-    const searchEl = document.getElementById("search-input");
-    if (searchEl && searchQuery) {
-      searchEl.focus();
-      searchEl.setSelectionRange(searchQuery.length, searchQuery.length);
-    }
-  }
-
-  function renderModal() {
-    const { catId, folderIdx, itemIdx, templateType, isCustom, customItemId } = modalOpen;
-    const tpl = TEMPLATES[templateType];
-    if (!tpl) return '';
-
-    const cat = getProcessedCategories().find(c => c.id === catId);
-    const folder = cat ? cat.folders[folderIdx] : null;
-
-    let item = null;
-    let tplK = '';
-
-    if (isCustom && customItemId) {
-      // Custom item template
-      const folderCustomItems = getCustomItemsForFolder(catId, folderIdx);
-      item = folderCustomItems.find(ci => ci.id === customItemId);
-      tplK = customTemplateKey(catId, folderIdx, customItemId);
-    } else {
-      // Regular item template
-      item = folder ? folder.items[itemIdx] : null;
-      tplK = templateKey(catId, folderIdx, itemIdx);
-    }
-
-    const savedData = templateData[tplK] || {};
-
-    let html = `<div class="modal-overlay" data-action="close-modal-overlay">
+      let html = `<div class="modal-overlay" data-action="close-modal-overlay">
       <div class="modal" data-modal-inner="true">
         <div class="modal-header">
           <div>
@@ -1614,26 +1815,26 @@
         </div>
         <div class="modal-body">`;
 
-    tpl.sections.forEach(section => {
-      html += `<div class="tpl-section">
+      tpl.sections.forEach(section => {
+        html += `<div class="tpl-section">
         <div class="tpl-section-title">${escAttr(replacePlaceholders(section.title))}</div>`;
-      section.fields.forEach(field => {
-        const val = savedData[field.id] || '';
-        const escapedVal = escAttr(val);
-        html += `<div class="tpl-field">
+        section.fields.forEach(field => {
+          const val = savedData[field.id] || '';
+          const escapedVal = escAttr(val);
+          html += `<div class="tpl-field">
             <label class="tpl-label">${escAttr(replacePlaceholders(field.label))}</label>`;
-        if (field.type === "textarea") {
-          html += `<textarea class="tpl-textarea" id="field-${field.id}" placeholder="Enter details...">${val.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>`;
-        } else if (field.type === "url") {
-          // URL field with link display and edit toggle
-          const fieldKey = `field-${field.id}`;
-          const isEditing = urlFieldsInEditMode[fieldKey] || !val;
-          if (isEditing) {
-            html += `<div class="url-field-wrapper">
+          if (field.type === "textarea") {
+            html += `<textarea class="tpl-textarea" id="field-${field.id}" placeholder="Enter details...">${val.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>`;
+          } else if (field.type === "url") {
+            // URL field with link display and edit toggle
+            const fieldKey = `field-${field.id}`;
+            const isEditing = urlFieldsInEditMode[fieldKey] || !val;
+            if (isEditing) {
+              html += `<div class="url-field-wrapper">
               <input class="tpl-input" id="field-${field.id}" type="url" value="${escapedVal}" placeholder="Enter URL (e.g., https://drive.google.com/...)">
             </div>`;
-          } else {
-            html += `<div class="url-field-wrapper">
+            } else {
+              html += `<div class="url-field-wrapper">
               <div class="url-link-display">
                 <a href="${escapedVal}" target="_blank" rel="noopener noreferrer" class="url-link" title="${escapedVal}">${escapedVal}</a>
               </div>
@@ -1645,575 +1846,703 @@
               </button>
               <input type="hidden" id="field-${field.id}" value="${escapedVal}">
             </div>`;
+            }
+          } else {
+            html += `<input class="tpl-input" id="field-${field.id}" type="text" value="${escapedVal}" placeholder="Enter details...">`;
           }
-        } else {
-          html += `<input class="tpl-input" id="field-${field.id}" type="text" value="${escapedVal}" placeholder="Enter details...">`;
-        }
-        if (field.hint) {
-          html += `<div class="tpl-hint">${escAttr(replacePlaceholders(field.hint))}</div>`;
-        }
+          if (field.hint) {
+            html += `<div class="tpl-hint">${escAttr(replacePlaceholders(field.hint))}</div>`;
+          }
+          html += `</div>`;
+        });
         html += `</div>`;
       });
-      html += `</div>`;
-    });
 
-    html += `<div style="display:flex;gap:8px;margin-top:20px;flex-wrap:wrap">
+      html += `<div style="display:flex;gap:8px;margin-top:20px;flex-wrap:wrap">
           <button class="save-btn" data-action="save-template">Save Details</button>
           <button class="export-btn" data-action="export-template">Export as Markdown</button>
           <button class="export-btn" data-action="export-pdf" style="background:rgba(99,102,241,0.15);border-color:rgba(99,102,241,0.3);color:#A5B4FC">Export as PDF</button>
         </div>
       </div></div></div>`;
 
-    return html;
-  }
+      return html;
+    }
 
-  // === ACTION HANDLERS ===
-  function handleAction(action, el) {
-    switch (action) {
-      // Setup wizard actions
-      case "setup-next": {
-        // Save current step data
-        saveSetupStepData();
-        currentSetupStep++;
-        render();
-        break;
-      }
-      case "setup-prev": {
-        currentSetupStep--;
-        render();
-        break;
-      }
-      case "setup-complete": {
-        setupComplete = true;
-        saveData(STORAGE_KEYS.setupComplete, true);
-        invalidateProcessedCategories();
-        saveData(STORAGE_KEYS.settings, settings);
-        render();
-        break;
-      }
-      case "add-child": {
-        settings.children = settings.children || [];
-        settings.children.push('');
-        render();
-        break;
-      }
-      case "remove-child": {
-        const idx = parseInt(el.dataset.childIndex, 10);
-        settings.children.splice(idx, 1);
-        render();
-        break;
-      }
-      // Settings modal actions
-      case "open-settings": {
-        settingsModalOpen = true;
-        render();
-        break;
-      }
-      case "close-settings": {
-        settingsModalOpen = false;
-        render();
-        break;
-      }
-      case "save-settings": {
-        saveSettingsFromModal();
-        settingsModalOpen = false;
-        render();
-        break;
-      }
-      case "settings-add-child": {
-        settings.children = settings.children || [];
-        settings.children.push('');
-        render();
-        break;
-      }
-      case "settings-remove-child": {
-        const idx = parseInt(el.dataset.childIndex, 10);
-        settings.children.splice(idx, 1);
-        render();
-        break;
-      }
-      case "settings-add-bank": {
-        settings.bankAccounts = settings.bankAccounts || [];
-        settings.bankAccounts.push({ name: '', type: 'checking' });
-        render();
-        break;
-      }
-      case "settings-remove-bank": {
-        const idx = parseInt(el.dataset.bankIndex, 10);
-        settings.bankAccounts.splice(idx, 1);
-        render();
-        break;
-      }
-      case "settings-add-link": {
-        settings.quickLinks = settings.quickLinks || [];
-        settings.quickLinks.push({ label: '', url: '' });
-        render();
-        break;
-      }
-      case "settings-remove-link": {
-        const idx = parseInt(el.dataset.linkIndex, 10);
-        settings.quickLinks.splice(idx, 1);
-        render();
-        break;
-      }
-      case "import-data": {
-        document.getElementById('import-file-input').click();
-        break;
-      }
-      // Help modal actions
-      case "open-help": {
-        helpModalOpen = true;
-        helpActiveSection = "overview";
-        helpSearchQuery = "";
-        helpExpandedCategories = {};
-        helpActiveResourceVideo = null;
-        render();
-        break;
-      }
-      case "close-help": {
-        helpModalOpen = false;
-        render();
-        break;
-      }
-      case "help-set-section": {
-        helpActiveSection = el.dataset.section;
-        render();
-        break;
-      }
-      case "open-context-help": {
-        const catId = el.dataset.contextId;
-        helpModalOpen = true;
-        helpActiveSection = "categories";
-        helpExpandedCategories[catId] = true;
-        helpSearchQuery = ""; // Clear search to ensure category is visible
-        render();
-
-        // Scroll to category after render
-        setTimeout(() => {
-          const catEl = document.getElementById(`help-cat-${catId}`);
-          if (catEl) {
-            catEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            // Flash effect
-            catEl.style.transition = 'background 0.3s';
-            const originalBg = catEl.style.background;
-            catEl.style.background = 'rgba(255, 255, 0, 0.1)';
-            setTimeout(() => {
-              catEl.style.background = originalBg;
-            }, 1000);
-          }
-        }, 100);
-        break;
-      }
-      case "help-toggle-category": {
-        const catId = el.dataset.catId;
-        // Save scroll position before render
-        const helpMain = document.querySelector('.help-main');
-        const scrollPos = helpMain ? helpMain.scrollTop : 0;
-
-        helpExpandedCategories[catId] = !helpExpandedCategories[catId];
-        render();
-
-        // Restore scroll position after render
-        const newHelpMain = document.querySelector('.help-main');
-        if (newHelpMain) {
-          newHelpMain.scrollTop = scrollPos;
-        }
-        break;
-      }
-      case "help-toggle-video": {
-        const videoKey = el.dataset.videoKey;
-        // Save scroll position before render
-        const helpMain = document.querySelector('.help-main');
-        const scrollPos = helpMain ? helpMain.scrollTop : 0;
-
-        if (helpActiveResourceVideo === videoKey) {
-          helpActiveResourceVideo = null;
-        } else {
-          helpActiveResourceVideo = videoKey;
-        }
-        render();
-
-        // Restore scroll position after render
-        const newHelpMain = document.querySelector('.help-main');
-        if (newHelpMain) {
-          newHelpMain.scrollTop = scrollPos;
-        }
-        break;
-      }
-      // Theme toggle
-      case "toggle-theme": {
-        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-        applyTheme(newTheme);
-        render();
-        break;
-      }
-      case "set-theme": {
-        const theme = el.dataset.theme;
-        if (theme) {
-          applyTheme(theme);
+    // === ACTION HANDLERS ===
+    function handleAction(action, el) {
+      switch (action) {
+        // Setup wizard actions
+        case "setup-next": {
+          // Save current step data
+          saveSetupStepData();
+          currentSetupStep++;
           render();
+          break;
         }
-        break;
-      }
-      // Main app actions
-      case "select-category": {
-        const id = el.dataset.catId;
-        activeCategory = activeCategory === id ? null : id;
-        activeFolder = null;
-        render();
-        break;
-      }
-      case "toggle-folder": {
-        const idx = parseInt(el.dataset.folderIdx, 10);
-        activeFolder = activeFolder === idx ? null : idx;
-        render();
-        break;
-      }
-      case "set-filter": {
-        filter = el.dataset.filter;
-        render();
-        break;
-      }
-      case "toggle-check": {
-        const key = el.dataset.checkKey;
-        checkedItems[key] = !checkedItems[key];
-        saveData(STORAGE_KEYS.checked, checkedItems);
-        render();
-        break;
-      }
-      case "toggle-nok": {
-        const key = el.dataset.nokKey;
-        showNok[key] = !showNok[key];
-        render();
-        break;
-      }
-      case "open-template": {
-        modalOpen = {
-          catId: el.dataset.tplCat,
-          folderIdx: parseInt(el.dataset.tplFi, 10),
-          itemIdx: parseInt(el.dataset.tplIi, 10),
-          templateType: el.dataset.tplType
-        };
-        render();
-        break;
-      }
-      case "close-modal-overlay": {
-        if (el.classList.contains("modal-overlay")) {
-          if (settingsModalOpen) {
-            settingsModalOpen = false;
-          } else if (helpModalOpen) {
-            helpModalOpen = false;
-          } else if (customItemModalOpen) {
-            customItemModalOpen = null;
-          } else if (categoryQuickLinkModalOpen) {
-            categoryQuickLinkModalOpen = null;
+        case "setup-prev": {
+          currentSetupStep--;
+          render();
+          break;
+        }
+        case "setup-complete": {
+          setupComplete = true;
+          saveData(STORAGE_KEYS.setupComplete, true);
+          invalidateProcessedCategories();
+          saveData(STORAGE_KEYS.settings, settings);
+          render();
+          break;
+        }
+        case "add-child": {
+          settings.children = settings.children || [];
+          settings.children.push('');
+          render();
+          break;
+        }
+        case "remove-child": {
+          const idx = parseInt(el.dataset.childIndex, 10);
+          settings.children.splice(idx, 1);
+          render();
+          break;
+        }
+        case "select-household": {
+          settings.householdType = el.dataset.type;
+          // Reset children when switching to single or couple (beneficiary/partner name is preserved)
+          if (settings.householdType === "single" || settings.householdType === "couple") {
+            settings.children = [];
+          }
+          render();
+          break;
+        }
+        // Settings modal actions
+        case "open-settings": {
+          settingsModalOpen = true;
+          render();
+          break;
+        }
+        case "close-settings": {
+          // Save any pending changes before closing
+          saveSettingsFromModal();
+          settingsModalOpen = false;
+          render();
+          break;
+        }
+        case "save-settings": {
+          saveSettingsFromModal();
+          settingsModalOpen = false;
+          render();
+          break;
+        }
+        case "settings-add-child": {
+          settings.children = settings.children || [];
+          settings.children.push('');
+          render();
+          break;
+        }
+        case "settings-remove-child": {
+          const idx = parseInt(el.dataset.childIndex, 10);
+          settings.children.splice(idx, 1);
+          render();
+          break;
+        }
+        case "settings-household": {
+          const newType = el.dataset.type;
+          const currentType = settings.householdType;
+
+          // If same type, do nothing
+          if (newType === currentType) break;
+
+          // Check if we need to show a warning
+          const hasChildren = settings.children && settings.children.filter(c => c.trim()).length > 0;
+          const hasPartner = settings.partnerName && settings.partnerName.trim();
+
+          let needsWarning = false;
+
+          // Switching from family to single/couple will lose children
+          if (currentType === 'family' && (newType === 'single' || newType === 'couple') && hasChildren) {
+            needsWarning = true;
+          }
+
+          if (needsWarning) {
+            // Show confirmation modal
+            householdSwitchConfirm = { fromType: currentType, toType: newType };
+            render();
           } else {
-            modalOpen = null;
-            urlFieldsInEditMode = {}; // Reset URL edit states when closing modal
+            // No warning needed, switch directly
+            settings.householdType = newType;
+            if (newType === "single" || newType === "couple") {
+              settings.children = [];
+            }
+            invalidateProcessedCategories();
+            saveData(STORAGE_KEYS.settings, settings);
+            render();
+          }
+          break;
+        }
+        case "confirm-household-switch": {
+          if (householdSwitchConfirm) {
+            settings.householdType = householdSwitchConfirm.toType;
+            // Clear children when switching to single or couple
+            if (householdSwitchConfirm.toType === "single" || householdSwitchConfirm.toType === "couple") {
+              settings.children = [];
+            }
+            householdSwitchConfirm = null;
+            invalidateProcessedCategories();
+            saveData(STORAGE_KEYS.settings, settings);
+            render();
+          }
+          break;
+        }
+        case "cancel-household-switch": {
+          householdSwitchConfirm = null;
+          render();
+          break;
+        }
+        case "settings-add-bank": {
+          settings.bankAccounts = settings.bankAccounts || [];
+          settings.bankAccounts.push({ name: '', type: 'checking' });
+          render();
+          break;
+        }
+        case "settings-remove-bank": {
+          const idx = parseInt(el.dataset.bankIndex, 10);
+          settings.bankAccounts.splice(idx, 1);
+          render();
+          break;
+        }
+        case "settings-add-link": {
+          settings.quickLinks = settings.quickLinks || [];
+          settings.quickLinks.push({ label: '', url: '' });
+          render();
+          break;
+        }
+        case "settings-remove-link": {
+          const idx = parseInt(el.dataset.linkIndex, 10);
+          settings.quickLinks.splice(idx, 1);
+          render();
+          break;
+        }
+        case "import-data": {
+          document.getElementById('import-file-input').click();
+          break;
+        }
+        // Help modal actions
+        case "open-help": {
+          helpModalOpen = true;
+          helpActiveSection = "overview";
+          helpSearchQuery = "";
+          helpExpandedCategories = {};
+          helpActiveResourceVideo = null;
+          render();
+          break;
+        }
+        case "close-help": {
+          helpModalOpen = false;
+          render();
+          break;
+        }
+        case "help-set-section": {
+          helpActiveSection = el.dataset.section;
+          render();
+          break;
+        }
+        case "open-context-help": {
+          const catId = el.dataset.contextId;
+          helpModalOpen = true;
+          helpActiveSection = "categories";
+          helpExpandedCategories[catId] = true;
+          helpSearchQuery = ""; // Clear search to ensure category is visible
+          render();
+
+          // Scroll to category after render
+          setTimeout(() => {
+            const catEl = document.getElementById(`help-cat-${catId}`);
+            if (catEl) {
+              catEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              // Flash effect
+              catEl.style.transition = 'background 0.3s';
+              const originalBg = catEl.style.background;
+              catEl.style.background = 'rgba(255, 255, 0, 0.1)';
+              setTimeout(() => {
+                catEl.style.background = originalBg;
+              }, 1000);
+            }
+          }, 100);
+          break;
+        }
+        case "help-toggle-category": {
+          const catId = el.dataset.catId;
+          // Save scroll position before render
+          const helpMain = document.querySelector('.help-main');
+          const scrollPos = helpMain ? helpMain.scrollTop : 0;
+
+          helpExpandedCategories[catId] = !helpExpandedCategories[catId];
+          render();
+
+          // Restore scroll position after render
+          const newHelpMain = document.querySelector('.help-main');
+          if (newHelpMain) {
+            newHelpMain.scrollTop = scrollPos;
+          }
+          break;
+        }
+        case "help-toggle-video": {
+          const videoKey = el.dataset.videoKey;
+          // Save scroll position before render
+          const helpMain = document.querySelector('.help-main');
+          const scrollPos = helpMain ? helpMain.scrollTop : 0;
+
+          if (helpActiveResourceVideo === videoKey) {
+            helpActiveResourceVideo = null;
+          } else {
+            helpActiveResourceVideo = videoKey;
           }
           render();
+
+          // Restore scroll position after render
+          const newHelpMain = document.querySelector('.help-main');
+          if (newHelpMain) {
+            newHelpMain.scrollTop = scrollPos;
+          }
+          break;
         }
-        break;
-      }
-      case "close-modal": {
-        modalOpen = null;
-        urlFieldsInEditMode = {}; // Reset URL edit states when closing modal
-        render();
-        break;
-      }
-      case "edit-url-field": {
-        const fieldId = el.dataset.fieldId;
-        const fieldKey = `field-${fieldId}`;
-        urlFieldsInEditMode[fieldKey] = true;
-        render();
-        break;
-      }
-      case "save-template": {
-        doSaveTemplate();
-        break;
-      }
-      case "export-template": {
-        doExportTemplate();
-        break;
-      }
-      case "export-pdf": {
-        doExportPDF();
-        break;
-      }
-      case "export-all": {
-        doExportAllData();
-        break;
-      }
-      case "reset-all": {
-        if (confirm("Reset ALL checkboxes? This cannot be undone. Template data will be preserved.")) {
-          checkedItems = {};
+        // Theme toggle
+        case "toggle-theme": {
+          const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+          applyTheme(newTheme);
+          render();
+          break;
+        }
+        case "set-theme": {
+          const theme = el.dataset.theme;
+          if (theme) {
+            applyTheme(theme);
+            render();
+          }
+          break;
+        }
+        // Main app actions
+        case "select-category": {
+          const id = el.dataset.catId;
+          activeCategory = activeCategory === id ? null : id;
+          activeFolder = null;
+          render();
+          break;
+        }
+        case "toggle-folder": {
+          const idx = parseInt(el.dataset.folderIdx, 10);
+          activeFolder = activeFolder === idx ? null : idx;
+          render();
+          break;
+        }
+        case "set-filter": {
+          filter = el.dataset.filter;
+          render();
+          break;
+        }
+        case "toggle-check": {
+          const key = el.dataset.checkKey;
+          checkedItems[key] = !checkedItems[key];
           saveData(STORAGE_KEYS.checked, checkedItems);
           render();
+          break;
         }
-        break;
-      }
-      // Custom item actions
-      case "open-custom-item-modal": {
-        customItemModalOpen = {
-          catId: el.dataset.cat,
-          folderIdx: parseInt(el.dataset.fi, 10)
-        };
-        render();
-        break;
-      }
-      case "close-custom-item-modal": {
-        customItemModalOpen = null;
-        render();
-        break;
-      }
-      case "save-custom-item": {
-        doSaveCustomItem();
-        break;
-      }
-      case "delete-custom-item": {
-        const catId = el.dataset.cat;
-        const fi = parseInt(el.dataset.fi, 10);
-        const itemId = el.dataset.customId;
-        if (confirm("Delete this custom item? This cannot be undone.")) {
-          doDeleteCustomItem(catId, fi, itemId);
+        case "toggle-nok": {
+          const key = el.dataset.nokKey;
+          showNok[key] = !showNok[key];
+          render();
+          break;
         }
-        break;
-      }
-      case "open-custom-template": {
-        modalOpen = {
-          catId: el.dataset.tplCat,
-          folderIdx: parseInt(el.dataset.tplFi, 10),
-          customItemId: el.dataset.customId,
-          templateType: "custom_item",
-          isCustom: true
-        };
-        render();
-        break;
-      }
-      // Category quick link actions
-      case "open-category-quick-link-modal": {
-        categoryQuickLinkModalOpen = {
-          catId: el.dataset.cat
-        };
-        render();
-        break;
-      }
-      case "close-category-quick-link-modal": {
-        categoryQuickLinkModalOpen = null;
-        render();
-        break;
-      }
-      case "save-category-quick-link": {
-        doSaveCategoryQuickLink();
-        break;
-      }
-      case "delete-category-quick-link": {
-        const catId = el.dataset.cat;
-        const linkId = el.dataset.linkId;
-        doDeleteCategoryQuickLink(catId, linkId);
-        break;
-      }
-    }
-  }
-
-  function saveSetupStepData() {
-    // Save family name and primary user
-    const familyNameEl = document.getElementById('setup-familyName');
-    if (familyNameEl) settings.familyName = familyNameEl.value || DEFAULT_SETTINGS.familyName;
-
-    const primaryUserEl = document.getElementById('setup-primaryUserName');
-    if (primaryUserEl) settings.primaryUserName = primaryUserEl.value || DEFAULT_SETTINGS.primaryUserName;
-
-    const partnerEl = document.getElementById('setup-partnerName');
-    if (partnerEl) settings.partnerName = partnerEl.value || DEFAULT_SETTINGS.partnerName;
-
-    // Save children
-    const childInputs = document.querySelectorAll('[data-child-index]');
-    if (childInputs.length > 0) {
-      settings.children = [];
-      childInputs.forEach(input => {
-        if (input.value.trim()) {
-          settings.children.push(input.value.trim());
+        case "open-template": {
+          modalOpen = {
+            catId: el.dataset.tplCat,
+            folderIdx: parseInt(el.dataset.tplFi, 10),
+            itemIdx: parseInt(el.dataset.tplIi, 10),
+            templateType: el.dataset.tplType
+          };
+          render();
+          break;
         }
-      });
-      if (settings.children.length === 0) {
-        settings.children = ['Child'];
-      }
-    }
-
-    invalidateProcessedCategories();
-    saveData(STORAGE_KEYS.settings, settings);
-  }
-
-  function saveSettingsFromModal() {
-    // Save family info
-    const familyNameEl = document.getElementById('settings-familyName');
-    if (familyNameEl) settings.familyName = familyNameEl.value || DEFAULT_SETTINGS.familyName;
-
-    const primaryUserEl = document.getElementById('settings-primaryUserName');
-    if (primaryUserEl) settings.primaryUserName = primaryUserEl.value || DEFAULT_SETTINGS.primaryUserName;
-
-    const partnerEl = document.getElementById('settings-partnerName');
-    if (partnerEl) settings.partnerName = partnerEl.value || DEFAULT_SETTINGS.partnerName;
-
-    // Save children
-    const childInputs = document.querySelectorAll('[data-settings-child-index]');
-    if (childInputs.length > 0) {
-      settings.children = [];
-      childInputs.forEach(input => {
-        if (input.value.trim()) {
-          settings.children.push(input.value.trim());
-        }
-      });
-      if (settings.children.length === 0) {
-        settings.children = ['Child'];
-      }
-    }
-
-    // Save bank accounts
-    const bankInputs = document.querySelectorAll('[data-settings-bank-index]');
-    const bankMap = {};
-    bankInputs.forEach(input => {
-      const idx = input.dataset.settingsBankIndex;
-      const field = input.dataset.field;
-      if (!bankMap[idx]) bankMap[idx] = {};
-      bankMap[idx][field] = input.value;
-    });
-    settings.bankAccounts = Object.values(bankMap).filter(b => b.name);
-
-    // Save quick links
-    const linkInputs = document.querySelectorAll('[data-settings-link-index]');
-    const linkMap = {};
-    linkInputs.forEach(input => {
-      const idx = input.dataset.settingsLinkIndex;
-      const field = input.dataset.field;
-      if (!linkMap[idx]) linkMap[idx] = {};
-      linkMap[idx][field] = input.value;
-    });
-    settings.quickLinks = Object.values(linkMap).filter(l => l.label && l.url);
-
-    invalidateProcessedCategories();
-    saveData(STORAGE_KEYS.settings, settings);
-  }
-
-  function doSaveTemplate() {
-    if (!modalOpen) return;
-    const { catId, folderIdx, itemIdx, templateType, isCustom, customItemId } = modalOpen;
-    const tpl = TEMPLATES[templateType];
-    if (!tpl) return;
-
-    // Determine the correct template key based on whether this is a custom item
-    const tplK = isCustom && customItemId
-      ? customTemplateKey(catId, folderIdx, customItemId)
-      : templateKey(catId, folderIdx, itemIdx);
-
-    const data = {};
-    tpl.sections.forEach(section => {
-      section.fields.forEach(field => {
-        const el = document.getElementById(`field-${field.id}`);
-        if (el) data[field.id] = el.value;
-      });
-    });
-    templateData[tplK] = data;
-    saveData(STORAGE_KEYS.templates, templateData);
-
-    const btn = document.querySelector('[data-action="save-template"]');
-    if (btn) {
-      btn.textContent = 'Saved!';
-      btn.style.background = '#059669';
-      setTimeout(() => { btn.textContent = 'Save Details'; btn.style.background = ''; }, 1500);
-    }
-  }
-
-  function doExportTemplate() {
-    if (!modalOpen) return;
-    const { catId, folderIdx, itemIdx, templateType, isCustom, customItemId } = modalOpen;
-    const tpl = TEMPLATES[templateType];
-    if (!tpl) return;
-
-    const cat = getProcessedCategories().find(c => c.id === catId);
-    const folder = cat ? cat.folders[folderIdx] : null;
-
-    let item = null;
-    let tplK = '';
-
-    if (isCustom && customItemId) {
-      const folderCustomItems = getCustomItemsForFolder(catId, folderIdx);
-      item = folderCustomItems.find(ci => ci.id === customItemId);
-      tplK = customTemplateKey(catId, folderIdx, customItemId);
-    } else {
-      item = folder ? folder.items[itemIdx] : null;
-      tplK = templateKey(catId, folderIdx, itemIdx);
-    }
-
-    const data = templateData[tplK] || {};
-
-    let md = `# ${tpl.icon} ${replacePlaceholders(tpl.title)}\n\n`;
-    md += `---\n\n`;
-    md += `| **Field** | **Value** |\n`;
-    md += `|-----------|----------|\n`;
-    md += `| **Item** | ${item ? replacePlaceholders(item.text) : 'N/A'} |\n`;
-    md += `| **Category** | ${cat ? cat.icon + ' ' + replacePlaceholders(cat.name) : 'N/A'} |\n`;
-    md += `| **Folder** | \uD83D\uDCC1 ${folder ? replacePlaceholders(folder.name) : 'N/A'} |\n`;
-    md += `| **Date Exported** | ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} |\n\n`;
-    md += `---\n\n`;
-
-    tpl.sections.forEach(section => {
-      md += `## ${replacePlaceholders(section.title)}\n\n`;
-      section.fields.forEach(field => {
-        const val = data[field.id];
-        if (val && val.trim()) {
-          if (val.includes('\n')) {
-            md += `### ${replacePlaceholders(field.label)}\n\n`;
-            md += `${val}\n\n`;
-          } else {
-            md += `- **${replacePlaceholders(field.label)}:** ${val}\n`;
+        case "close-modal-overlay": {
+          if (el.classList.contains("modal-overlay")) {
+            if (householdSwitchConfirm) {
+              householdSwitchConfirm = null;
+            } else if (settingsModalOpen) {
+              saveSettingsFromModal();
+              settingsModalOpen = false;
+            } else if (helpModalOpen) {
+              helpModalOpen = false;
+            } else if (customItemModalOpen) {
+              customItemModalOpen = null;
+            } else if (categoryQuickLinkModalOpen) {
+              categoryQuickLinkModalOpen = null;
+            } else {
+              modalOpen = null;
+              urlFieldsInEditMode = {}; // Reset URL edit states when closing modal
+            }
+            render();
           }
-        } else {
-          md += `- **${replacePlaceholders(field.label)}:** *Not filled*\n`;
+          break;
         }
-      });
-      md += `\n`;
-    });
-
-    md += `---\n\n`;
-    md += `> *Exported from ${settings.familyName} Life Vault*\n`;
-
-    const blob = new Blob([md], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${tpl.title.replace(/[^a-zA-Z0-9]/g, '_')}_${catId}_${folderIdx}_${itemIdx}.md`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
-
-  function doExportPDF() {
-    if (!modalOpen) return;
-    const { catId, folderIdx, itemIdx, templateType, isCustom, customItemId } = modalOpen;
-    const tpl = TEMPLATES[templateType];
-    if (!tpl) return;
-
-    const cat = getProcessedCategories().find(c => c.id === catId);
-    const folder = cat ? cat.folders[folderIdx] : null;
-
-    let item = null;
-    let tplK = '';
-
-    if (isCustom && customItemId) {
-      const folderCustomItems = getCustomItemsForFolder(catId, folderIdx);
-      item = folderCustomItems.find(ci => ci.id === customItemId);
-      tplK = customTemplateKey(catId, folderIdx, customItemId);
-    } else {
-      item = folder ? folder.items[itemIdx] : null;
-      tplK = templateKey(catId, folderIdx, itemIdx);
+        case "close-modal": {
+          modalOpen = null;
+          urlFieldsInEditMode = {}; // Reset URL edit states when closing modal
+          render();
+          break;
+        }
+        case "edit-url-field": {
+          const fieldId = el.dataset.fieldId;
+          const fieldKey = `field-${fieldId}`;
+          urlFieldsInEditMode[fieldKey] = true;
+          render();
+          break;
+        }
+        case "save-template": {
+          doSaveTemplate();
+          break;
+        }
+        case "export-template": {
+          doExportTemplate();
+          break;
+        }
+        case "export-pdf": {
+          doExportPDF();
+          break;
+        }
+        case "export-all": {
+          doExportAllData();
+          break;
+        }
+        case "reset-all": {
+          if (confirm("Reset ALL checkboxes? This cannot be undone. Template data will be preserved.")) {
+            checkedItems = {};
+            saveData(STORAGE_KEYS.checked, checkedItems);
+            render();
+          }
+          break;
+        }
+        // Custom item actions
+        case "open-custom-item-modal": {
+          customItemModalOpen = {
+            catId: el.dataset.cat,
+            folderIdx: parseInt(el.dataset.fi, 10)
+          };
+          render();
+          break;
+        }
+        case "close-custom-item-modal": {
+          customItemModalOpen = null;
+          render();
+          break;
+        }
+        case "save-custom-item": {
+          doSaveCustomItem();
+          break;
+        }
+        case "delete-custom-item": {
+          const catId = el.dataset.cat;
+          const fi = parseInt(el.dataset.fi, 10);
+          const itemId = el.dataset.customId;
+          if (confirm("Delete this custom item? This cannot be undone.")) {
+            doDeleteCustomItem(catId, fi, itemId);
+          }
+          break;
+        }
+        case "open-custom-template": {
+          modalOpen = {
+            catId: el.dataset.tplCat,
+            folderIdx: parseInt(el.dataset.tplFi, 10),
+            customItemId: el.dataset.customId,
+            templateType: "custom_item",
+            isCustom: true
+          };
+          render();
+          break;
+        }
+        // Category quick link actions
+        case "open-category-quick-link-modal": {
+          categoryQuickLinkModalOpen = {
+            catId: el.dataset.cat
+          };
+          render();
+          break;
+        }
+        case "close-category-quick-link-modal": {
+          categoryQuickLinkModalOpen = null;
+          render();
+          break;
+        }
+        case "save-category-quick-link": {
+          doSaveCategoryQuickLink();
+          break;
+        }
+        case "delete-category-quick-link": {
+          const catId = el.dataset.cat;
+          const linkId = el.dataset.linkId;
+          doDeleteCategoryQuickLink(catId, linkId);
+          break;
+        }
+      }
     }
 
-    const data = templateData[tplK] || {};
+    function saveSetupStepData() {
+      // Save family/vault name and primary user
+      const familyNameEl = document.getElementById('setup-familyName');
+      if (familyNameEl) settings.familyName = familyNameEl.value || DEFAULT_SETTINGS.familyName;
 
-    let html = `<!DOCTYPE html>
+      const primaryUserEl = document.getElementById('setup-primaryUserName');
+      if (primaryUserEl) settings.primaryUserName = primaryUserEl.value || DEFAULT_SETTINGS.primaryUserName;
+
+      // Save partner name (can be empty for single users)
+      const partnerEl = document.getElementById('setup-partnerName');
+      if (partnerEl) settings.partnerName = partnerEl.value.trim();
+
+      // Save children (can be empty array)
+      const childInputs = document.querySelectorAll('[data-child-index]');
+      if (childInputs.length > 0) {
+        settings.children = [];
+        childInputs.forEach(input => {
+          if (input.value.trim()) {
+            settings.children.push(input.value.trim());
+          }
+        });
+      }
+      // Don't add default children if empty - allow empty array
+
+      invalidateProcessedCategories();
+      saveData(STORAGE_KEYS.settings, settings);
+    }
+
+    function saveSettingsFromModal() {
+      // Save basic info
+      const familyNameEl = document.getElementById('settings-familyName');
+      if (familyNameEl) settings.familyName = familyNameEl.value || DEFAULT_SETTINGS.familyName;
+
+      const primaryUserEl = document.getElementById('settings-primaryUserName');
+      if (primaryUserEl) settings.primaryUserName = primaryUserEl.value || DEFAULT_SETTINGS.primaryUserName;
+
+      // Save partner name (only if shown, otherwise keep empty)
+      const partnerEl = document.getElementById('settings-partnerName');
+      if (partnerEl) {
+        settings.partnerName = partnerEl.value.trim();
+      } else if (settings.householdType === 'single') {
+        settings.partnerName = "";
+      }
+
+      // Save children (only if shown, otherwise keep empty array)
+      const childInputs = document.querySelectorAll('[data-settings-child-index]');
+      if (settings.householdType === 'family') {
+        settings.children = [];
+        childInputs.forEach(input => {
+          if (input.value.trim()) {
+            settings.children.push(input.value.trim());
+          }
+        });
+        // Allow empty children array - don't add default
+      } else {
+        // Not a family - clear children
+        settings.children = [];
+      }
+
+      // Save bank accounts
+      const bankInputs = document.querySelectorAll('[data-settings-bank-index]');
+      const bankMap = {};
+      bankInputs.forEach(input => {
+        const idx = input.dataset.settingsBankIndex;
+        const field = input.dataset.field;
+        if (!bankMap[idx]) bankMap[idx] = {};
+        bankMap[idx][field] = input.value;
+      });
+      settings.bankAccounts = Object.values(bankMap).filter(b => b.name);
+
+      // Save quick links
+      const linkInputs = document.querySelectorAll('[data-settings-link-index]');
+      const linkMap = {};
+      linkInputs.forEach(input => {
+        const idx = input.dataset.settingsLinkIndex;
+        const field = input.dataset.field;
+        if (!linkMap[idx]) linkMap[idx] = {};
+        linkMap[idx][field] = input.value;
+      });
+      settings.quickLinks = Object.values(linkMap).filter(l => l.label && l.url);
+
+      invalidateProcessedCategories();
+      saveData(STORAGE_KEYS.settings, settings);
+    }
+
+    // Auto-save settings without closing modal or re-rendering
+    function autoSaveSettings() {
+      // Save basic info
+      const familyNameEl = document.getElementById('settings-familyName');
+      if (familyNameEl) settings.familyName = familyNameEl.value || DEFAULT_SETTINGS.familyName;
+
+      const primaryUserEl = document.getElementById('settings-primaryUserName');
+      if (primaryUserEl) settings.primaryUserName = primaryUserEl.value || DEFAULT_SETTINGS.primaryUserName;
+
+      // Save partner/beneficiary name
+      const partnerEl = document.getElementById('settings-partnerName');
+      if (partnerEl) {
+        settings.partnerName = partnerEl.value.trim();
+      }
+
+      // Save children
+      const childInputs = document.querySelectorAll('[data-settings-child-index]');
+      if (settings.householdType === 'family' && childInputs.length > 0) {
+        settings.children = [];
+        childInputs.forEach(input => {
+          if (input.value.trim()) {
+            settings.children.push(input.value.trim());
+          }
+        });
+      }
+
+      // Save bank accounts
+      const bankInputs = document.querySelectorAll('[data-settings-bank-index]');
+      if (bankInputs.length > 0) {
+        const bankMap = {};
+        bankInputs.forEach(input => {
+          const idx = input.dataset.settingsBankIndex;
+          const field = input.dataset.field;
+          if (!bankMap[idx]) bankMap[idx] = {};
+          bankMap[idx][field] = input.tagName === 'SELECT' ? input.value : input.value;
+        });
+        settings.bankAccounts = Object.values(bankMap).filter(b => b.name);
+      }
+
+      // Save quick links
+      const linkInputs = document.querySelectorAll('[data-settings-link-index]');
+      if (linkInputs.length > 0) {
+        const linkMap = {};
+        linkInputs.forEach(input => {
+          const idx = input.dataset.settingsLinkIndex;
+          const field = input.dataset.field;
+          if (!linkMap[idx]) linkMap[idx] = {};
+          linkMap[idx][field] = input.value;
+        });
+        settings.quickLinks = Object.values(linkMap).filter(l => l.label && l.url);
+      }
+
+      invalidateProcessedCategories();
+      saveData(STORAGE_KEYS.settings, settings);
+    }
+
+    function doSaveTemplate() {
+      if (!modalOpen) return;
+      const { catId, folderIdx, itemIdx, templateType, isCustom, customItemId } = modalOpen;
+      const tpl = TEMPLATES[templateType];
+      if (!tpl) return;
+
+      // Determine the correct template key based on whether this is a custom item
+      const tplK = isCustom && customItemId
+        ? customTemplateKey(catId, folderIdx, customItemId)
+        : templateKey(catId, folderIdx, itemIdx);
+
+      const data = {};
+      tpl.sections.forEach(section => {
+        section.fields.forEach(field => {
+          const el = document.getElementById(`field-${field.id}`);
+          if (el) data[field.id] = el.value;
+        });
+      });
+      templateData[tplK] = data;
+      saveData(STORAGE_KEYS.templates, templateData);
+
+      const btn = document.querySelector('[data-action="save-template"]');
+      if (btn) {
+        btn.textContent = 'Saved!';
+        btn.style.background = '#059669';
+        setTimeout(() => { btn.textContent = 'Save Details'; btn.style.background = ''; }, 1500);
+      }
+    }
+
+    function doExportTemplate() {
+      if (!modalOpen) return;
+      const { catId, folderIdx, itemIdx, templateType, isCustom, customItemId } = modalOpen;
+      const tpl = TEMPLATES[templateType];
+      if (!tpl) return;
+
+      const cat = getProcessedCategories().find(c => c.id === catId);
+      const folder = cat ? cat.folders[folderIdx] : null;
+
+      let item = null;
+      let tplK = '';
+
+      if (isCustom && customItemId) {
+        const folderCustomItems = getCustomItemsForFolder(catId, folderIdx);
+        item = folderCustomItems.find(ci => ci.id === customItemId);
+        tplK = customTemplateKey(catId, folderIdx, customItemId);
+      } else {
+        item = folder ? folder.items[itemIdx] : null;
+        tplK = templateKey(catId, folderIdx, itemIdx);
+      }
+
+      const data = templateData[tplK] || {};
+
+      let md = `# ${tpl.icon} ${replacePlaceholders(tpl.title)}\n\n`;
+      md += `---\n\n`;
+      md += `| **Field** | **Value** |\n`;
+      md += `|-----------|----------|\n`;
+      md += `| **Item** | ${item ? replacePlaceholders(item.text) : 'N/A'} |\n`;
+      md += `| **Category** | ${cat ? cat.icon + ' ' + replacePlaceholders(cat.name) : 'N/A'} |\n`;
+      md += `| **Folder** | \uD83D\uDCC1 ${folder ? replacePlaceholders(folder.name) : 'N/A'} |\n`;
+      md += `| **Date Exported** | ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} |\n\n`;
+      md += `---\n\n`;
+
+      tpl.sections.forEach(section => {
+        md += `## ${replacePlaceholders(section.title)}\n\n`;
+        section.fields.forEach(field => {
+          const val = data[field.id];
+          if (val && val.trim()) {
+            if (val.includes('\n')) {
+              md += `### ${replacePlaceholders(field.label)}\n\n`;
+              md += `${val}\n\n`;
+            } else {
+              md += `- **${replacePlaceholders(field.label)}:** ${val}\n`;
+            }
+          } else {
+            md += `- **${replacePlaceholders(field.label)}:** *Not filled*\n`;
+          }
+        });
+        md += `\n`;
+      });
+
+      md += `---\n\n`;
+      md += `> *Exported from ${settings.familyName} Life Vault*\n`;
+
+      const blob = new Blob([md], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${tpl.title.replace(/[^a-zA-Z0-9]/g, '_')}_${catId}_${folderIdx}_${itemIdx}.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function doExportPDF() {
+      if (!modalOpen) return;
+      const { catId, folderIdx, itemIdx, templateType, isCustom, customItemId } = modalOpen;
+      const tpl = TEMPLATES[templateType];
+      if (!tpl) return;
+
+      const cat = getProcessedCategories().find(c => c.id === catId);
+      const folder = cat ? cat.folders[folderIdx] : null;
+
+      let item = null;
+      let tplK = '';
+
+      if (isCustom && customItemId) {
+        const folderCustomItems = getCustomItemsForFolder(catId, folderIdx);
+        item = folderCustomItems.find(ci => ci.id === customItemId);
+        tplK = customTemplateKey(catId, folderIdx, customItemId);
+      } else {
+        item = folder ? folder.items[itemIdx] : null;
+        tplK = templateKey(catId, folderIdx, itemIdx);
+      }
+
+      const data = templateData[tplK] || {};
+
+      let html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -2353,296 +2682,309 @@
     <tr><td>Exported</td><td>${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</td></tr>
   </table>`;
 
-    tpl.sections.forEach(section => {
-      html += `<div class="section">
+      tpl.sections.forEach(section => {
+        html += `<div class="section">
     <div class="section-title">${replacePlaceholders(section.title)}</div>`;
-      section.fields.forEach(field => {
-        const val = data[field.id];
-        const escapedVal = val ? val.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
-        if (val && val.trim()) {
-          if (field.type === 'url') {
-            // Render URL fields as clickable links
-            html += `<div class="field">
+        section.fields.forEach(field => {
+          const val = data[field.id];
+          const escapedVal = val ? val.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
+          if (val && val.trim()) {
+            if (field.type === 'url') {
+              // Render URL fields as clickable links
+              html += `<div class="field">
       <span class="field-label">${replacePlaceholders(field.label)}:</span>
       <a href="${escapedVal}" target="_blank" rel="noopener noreferrer" class="field-url">${escapedVal}</a>
     </div>`;
-          } else if (val.includes('\n')) {
-            html += `<div class="field">
+            } else if (val.includes('\n')) {
+              html += `<div class="field">
       <div class="field-label">${replacePlaceholders(field.label)}:</div>
       <div class="field-multiline">${escapedVal}</div>
     </div>`;
-          } else {
-            html += `<div class="field">
+            } else {
+              html += `<div class="field">
       <span class="field-label">${replacePlaceholders(field.label)}:</span>
       <span class="field-value">${escapedVal}</span>
     </div>`;
-          }
-        } else {
-          html += `<div class="field">
+            }
+          } else {
+            html += `<div class="field">
       <span class="field-label">${replacePlaceholders(field.label)}:</span>
       <span class="field-value empty">Not filled</span>
     </div>`;
-        }
+          }
+        });
+        html += `</div>`;
       });
-      html += `</div>`;
-    });
 
-    html += `<div class="footer">
+      html += `<div class="footer">
       Exported from <strong>${settings.familyName} Life Vault</strong> &bull; ${new Date().toLocaleDateString()}
     </div>
 </body>
 </html>`;
 
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(html);
-      printWindow.document.close();
-      // Add click handler after document is ready (avoids CSP inline script issues)
-      const printBtn = printWindow.document.querySelector('.print-btn');
-      if (printBtn) {
-        printBtn.addEventListener('click', function () {
-          printWindow.print();
-        });
-      }
-    } else {
-      alert('Please allow pop-ups to export as PDF');
-    }
-  }
-
-  function doExportAllData() {
-    const exportObj = {
-      checkedItems: checkedItems,
-      templateData: templateData,
-      settings: settings,
-      customItems: customItems,
-      categoryQuickLinks: categoryQuickLinks,
-      exportDate: new Date().toISOString(),
-      version: "1.6.0"
-    };
-    const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `life-vault-backup-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }
-
-  function doImportData(file) {
-    const reader = new FileReader();
-    reader.onload = function (e) {
-      try {
-        const data = JSON.parse(e.target.result);
-        if (data.checkedItems) {
-          checkedItems = data.checkedItems;
-          saveData(STORAGE_KEYS.checked, checkedItems);
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(html);
+        printWindow.document.close();
+        // Add click handler after document is ready (avoids CSP inline script issues)
+        const printBtn = printWindow.document.querySelector('.print-btn');
+        if (printBtn) {
+          printBtn.addEventListener('click', function () {
+            printWindow.print();
+          });
         }
-        if (data.templateData) {
-          templateData = data.templateData;
+      } else {
+        alert('Please allow pop-ups to export as PDF');
+      }
+    }
+
+    function doExportAllData() {
+      const exportObj = {
+        checkedItems: checkedItems,
+        templateData: templateData,
+        settings: settings,
+        customItems: customItems,
+        categoryQuickLinks: categoryQuickLinks,
+        exportDate: new Date().toISOString(),
+        version: "1.6.0"
+      };
+      const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `life-vault-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function doImportData(file) {
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (data.checkedItems) {
+            checkedItems = data.checkedItems;
+            saveData(STORAGE_KEYS.checked, checkedItems);
+          }
+          if (data.templateData) {
+            templateData = data.templateData;
+            saveData(STORAGE_KEYS.templates, templateData);
+          }
+          if (data.settings) {
+            settings = { ...DEFAULT_SETTINGS, ...data.settings };
+            invalidateProcessedCategories();
+            saveData(STORAGE_KEYS.settings, settings);
+          }
+          if (data.customItems) {
+            customItems = data.customItems;
+            saveData(STORAGE_KEYS.customItems, customItems);
+          }
+          if (data.categoryQuickLinks) {
+            categoryQuickLinks = data.categoryQuickLinks;
+            saveData(STORAGE_KEYS.categoryQuickLinks, categoryQuickLinks);
+          }
+          alert('Data imported successfully!');
+          render();
+        } catch (err) {
+          alert('Error importing data: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function doSaveCustomItem() {
+      if (!customItemModalOpen) return;
+      const { catId, folderIdx } = customItemModalOpen;
+
+      const textEl = document.getElementById('custom-item-text');
+      const priorityEl = document.querySelector('input[name="custom-item-priority"]:checked');
+
+      if (!textEl || !textEl.value.trim()) {
+        alert('Please enter an item description.');
+        return;
+      }
+
+      const text = textEl.value.trim();
+      const priority = priorityEl ? priorityEl.value : 'important';
+      const itemId = generateCustomItemId();
+
+      const key = folderKey(catId, folderIdx);
+      if (!customItems[key]) {
+        customItems[key] = [];
+      }
+
+      customItems[key].push({
+        id: itemId,
+        text: text,
+        priority: priority,
+        createdAt: Date.now()
+      });
+
+      saveData(STORAGE_KEYS.customItems, customItems);
+      customItemModalOpen = null;
+      render();
+    }
+
+    function doDeleteCustomItem(catId, fi, itemId) {
+      const key = folderKey(catId, fi);
+      if (customItems[key]) {
+        customItems[key] = customItems[key].filter(item => item.id !== itemId);
+        if (customItems[key].length === 0) {
+          delete customItems[key];
+        }
+        saveData(STORAGE_KEYS.customItems, customItems);
+
+        // Also remove associated template data and checked status
+        const customTplK = customTemplateKey(catId, fi, itemId);
+        const customCheckK = customItemKey(catId, fi, itemId);
+        if (templateData[customTplK]) {
+          delete templateData[customTplK];
           saveData(STORAGE_KEYS.templates, templateData);
         }
-        if (data.settings) {
-          settings = { ...DEFAULT_SETTINGS, ...data.settings };
-          invalidateProcessedCategories();
-          saveData(STORAGE_KEYS.settings, settings);
+        if (checkedItems[customCheckK]) {
+          delete checkedItems[customCheckK];
+          saveData(STORAGE_KEYS.checked, checkedItems);
         }
-        if (data.customItems) {
-          customItems = data.customItems;
-          saveData(STORAGE_KEYS.customItems, customItems);
-        }
-        if (data.categoryQuickLinks) {
-          categoryQuickLinks = data.categoryQuickLinks;
-          saveData(STORAGE_KEYS.categoryQuickLinks, categoryQuickLinks);
-        }
-        alert('Data imported successfully!');
+
         render();
-      } catch (err) {
-        alert('Error importing data: ' + err.message);
       }
-    };
-    reader.readAsText(file);
-  }
-
-  function doSaveCustomItem() {
-    if (!customItemModalOpen) return;
-    const { catId, folderIdx } = customItemModalOpen;
-
-    const textEl = document.getElementById('custom-item-text');
-    const priorityEl = document.querySelector('input[name="custom-item-priority"]:checked');
-
-    if (!textEl || !textEl.value.trim()) {
-      alert('Please enter an item description.');
-      return;
     }
 
-    const text = textEl.value.trim();
-    const priority = priorityEl ? priorityEl.value : 'important';
-    const itemId = generateCustomItemId();
+    function doSaveCategoryQuickLink() {
+      if (!categoryQuickLinkModalOpen) return;
+      const { catId } = categoryQuickLinkModalOpen;
 
-    const key = folderKey(catId, folderIdx);
-    if (!customItems[key]) {
-      customItems[key] = [];
-    }
+      const labelEl = document.getElementById('cat-quick-link-label');
+      const urlEl = document.getElementById('cat-quick-link-url');
 
-    customItems[key].push({
-      id: itemId,
-      text: text,
-      priority: priority,
-      createdAt: Date.now()
-    });
-
-    saveData(STORAGE_KEYS.customItems, customItems);
-    customItemModalOpen = null;
-    render();
-  }
-
-  function doDeleteCustomItem(catId, fi, itemId) {
-    const key = folderKey(catId, fi);
-    if (customItems[key]) {
-      customItems[key] = customItems[key].filter(item => item.id !== itemId);
-      if (customItems[key].length === 0) {
-        delete customItems[key];
+      if (!labelEl || !labelEl.value.trim()) {
+        alert('Please enter a link label.');
+        return;
       }
-      saveData(STORAGE_KEYS.customItems, customItems);
-
-      // Also remove associated template data and checked status
-      const customTplK = customTemplateKey(catId, fi, itemId);
-      const customCheckK = customItemKey(catId, fi, itemId);
-      if (templateData[customTplK]) {
-        delete templateData[customTplK];
-        saveData(STORAGE_KEYS.templates, templateData);
-      }
-      if (checkedItems[customCheckK]) {
-        delete checkedItems[customCheckK];
-        saveData(STORAGE_KEYS.checked, checkedItems);
+      if (!urlEl || !urlEl.value.trim()) {
+        alert('Please enter a URL.');
+        return;
       }
 
-      render();
-    }
-  }
+      const label = labelEl.value.trim();
+      let url = urlEl.value.trim();
 
-  function doSaveCategoryQuickLink() {
-    if (!categoryQuickLinkModalOpen) return;
-    const { catId } = categoryQuickLinkModalOpen;
-
-    const labelEl = document.getElementById('cat-quick-link-label');
-    const urlEl = document.getElementById('cat-quick-link-url');
-
-    if (!labelEl || !labelEl.value.trim()) {
-      alert('Please enter a link label.');
-      return;
-    }
-    if (!urlEl || !urlEl.value.trim()) {
-      alert('Please enter a URL.');
-      return;
-    }
-
-    const label = labelEl.value.trim();
-    let url = urlEl.value.trim();
-
-    // Auto-add https:// if missing
-    if (!/^https?:\/\//i.test(url)) {
-      url = 'https://' + url;
-    }
-
-    const linkId = generateCustomItemId();
-
-    if (!categoryQuickLinks[catId]) {
-      categoryQuickLinks[catId] = [];
-    }
-
-    categoryQuickLinks[catId].push({
-      id: linkId,
-      label: label,
-      url: url
-    });
-
-    saveData(STORAGE_KEYS.categoryQuickLinks, categoryQuickLinks);
-    categoryQuickLinkModalOpen = null;
-    render();
-  }
-
-  function doDeleteCategoryQuickLink(catId, linkId) {
-    if (categoryQuickLinks[catId]) {
-      categoryQuickLinks[catId] = categoryQuickLinks[catId].filter(link => link.id !== linkId);
-      if (categoryQuickLinks[catId].length === 0) {
-        delete categoryQuickLinks[catId];
+      // Auto-add https:// if missing
+      if (!/^https?:\/\//i.test(url)) {
+        url = 'https://' + url;
       }
+
+      const linkId = generateCustomItemId();
+
+      if (!categoryQuickLinks[catId]) {
+        categoryQuickLinks[catId] = [];
+      }
+
+      categoryQuickLinks[catId].push({
+        id: linkId,
+        label: label,
+        url: url
+      });
+
       saveData(STORAGE_KEYS.categoryQuickLinks, categoryQuickLinks);
+      categoryQuickLinkModalOpen = null;
       render();
     }
-  }
 
-  // === DELEGATED EVENT LISTENERS (CSP-compliant, no inline handlers) ===
-  document.getElementById("app").addEventListener("click", function (e) {
-    let el = e.target;
-    while (el && el !== this) {
-      if (el.dataset && el.dataset.action) {
-        if (el.dataset.action !== "toggle-check") {
-          if (el.dataset.action === "close-modal-overlay") {
-            if (e.target === el) {
-              handleAction(el.dataset.action, el);
-            }
-            return;
-          }
-          handleAction(el.dataset.action, el);
+    function doDeleteCategoryQuickLink(catId, linkId) {
+      if (categoryQuickLinks[catId]) {
+        categoryQuickLinks[catId] = categoryQuickLinks[catId].filter(link => link.id !== linkId);
+        if (categoryQuickLinks[catId].length === 0) {
+          delete categoryQuickLinks[catId];
         }
-        return;
-      }
-      el = el.parentElement;
-    }
-  });
-
-  document.getElementById("app").addEventListener("change", function (e) {
-    let el = e.target;
-    while (el && el !== this) {
-      if (el.dataset && el.dataset.action === "toggle-check") {
-        handleAction("toggle-check", el);
-        return;
-      }
-      el = el.parentElement;
-    }
-
-    // Handle file import
-    if (e.target.id === 'import-file-input' && e.target.files.length > 0) {
-      doImportData(e.target.files[0]);
-      e.target.value = '';
-    }
-  });
-
-  document.getElementById("app").addEventListener("input", function (e) {
-    if (e.target.id === "search-input") {
-      searchQuery = e.target.value;
-      clearTimeout(window._searchTimeout);
-      window._searchTimeout = setTimeout(function () {
+        saveData(STORAGE_KEYS.categoryQuickLinks, categoryQuickLinks);
         render();
-      }, 200);
+      }
     }
-    if (e.target.id === "help-search-input") {
-      helpSearchQuery = e.target.value;
-      clearTimeout(window._helpSearchTimeout);
-      window._helpSearchTimeout = setTimeout(function () {
-        render();
-      }, 200);
-    }
-  });
 
-  // Hover effects for dashboard cards
-  document.getElementById("app").addEventListener("mouseenter", function (e) {
-    const card = e.target.closest('.dash-card[data-hover-color]');
-    if (card) {
-      card.style.borderColor = card.dataset.hoverColor;
-      card.style.background = 'rgba(255,255,255,0.05)';
-    }
-  }, true);
+    // === DELEGATED EVENT LISTENERS (CSP-compliant, no inline handlers) ===
+    document.getElementById("app").addEventListener("click", function (e) {
+      let el = e.target;
+      while (el && el !== this) {
+        if (el.dataset && el.dataset.action) {
+          if (el.dataset.action !== "toggle-check") {
+            if (el.dataset.action === "close-modal-overlay") {
+              if (e.target === el) {
+                handleAction(el.dataset.action, el);
+              }
+              return;
+            }
+            handleAction(el.dataset.action, el);
+          }
+          return;
+        }
+        el = el.parentElement;
+      }
+    });
 
-  document.getElementById("app").addEventListener("mouseleave", function (e) {
-    const card = e.target.closest('.dash-card[data-hover-color]');
-    if (card) {
-      card.style.borderColor = '';
-      card.style.background = '';
-    }
-  }, true);
-})();
+    document.getElementById("app").addEventListener("change", function (e) {
+      let el = e.target;
+      while (el && el !== this) {
+        if (el.dataset && el.dataset.action === "toggle-check") {
+          handleAction("toggle-check", el);
+          return;
+        }
+        el = el.parentElement;
+      }
+
+      // Handle file import
+      if (e.target.id === 'import-file-input' && e.target.files.length > 0) {
+        doImportData(e.target.files[0]);
+        e.target.value = '';
+      }
+
+      // Auto-save settings on select change (e.g., bank account type)
+      if (settingsModalOpen && e.target.dataset.settingsBankIndex) {
+        autoSaveSettings();
+      }
+    });
+
+    document.getElementById("app").addEventListener("input", function (e) {
+      if (e.target.id === "search-input") {
+        searchQuery = e.target.value;
+        clearTimeout(window._searchTimeout);
+        window._searchTimeout = setTimeout(function () {
+          render();
+        }, 200);
+      }
+      if (e.target.id === "help-search-input") {
+        helpSearchQuery = e.target.value;
+        clearTimeout(window._helpSearchTimeout);
+        window._helpSearchTimeout = setTimeout(function () {
+          render();
+        }, 200);
+      }
+
+      // Auto-save settings on input change
+      if (settingsModalOpen) {
+        clearTimeout(window._settingsAutoSaveTimeout);
+        window._settingsAutoSaveTimeout = setTimeout(function () {
+          autoSaveSettings();
+        }, 300);
+      }
+    });
+
+    // Hover effects for dashboard cards
+    document.getElementById("app").addEventListener("mouseenter", function (e) {
+      const card = e.target.closest('.dash-card[data-hover-color]');
+      if (card) {
+        card.style.borderColor = card.dataset.hoverColor;
+        card.style.background = 'rgba(255,255,255,0.05)';
+      }
+    }, true);
+
+    document.getElementById("app").addEventListener("mouseleave", function (e) {
+      const card = e.target.closest('.dash-card[data-hover-color]');
+      if (card) {
+        card.style.borderColor = '';
+        card.style.background = '';
+      }
+    }, true);
+  }) ();

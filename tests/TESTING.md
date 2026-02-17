@@ -10,7 +10,7 @@ A comprehensive test suite for the Life Vault Chrome extension covering all core
 node tests/run-tests-headless.js
 ```
 
-Runs all 109 tests in Node.js with colored terminal output. Exit code 0 on success, 1 on failure.
+Runs all 156 tests in Node.js with colored terminal output. Exit code 0 on success, 1 on failure.
 
 **Requirements:** Node.js 14+
 
@@ -56,8 +56,11 @@ The test suite covers all items from the CLAUDE.md Testing Considerations sectio
 | **Toggle check** | 3 | Check/uncheck items, storage persistence |
 | **Cache invalidation** | 3 | Processed categories cache behavior |
 | **Storage keys** | 2 | Uniqueness and completeness |
+| **Help modal** | 12 | Open/close, section navigation, category expansion, search, state persistence |
+| **Category quick links** | 16 | Add/delete links, URL auto-formatting, persistence, export/import |
+| **Household type** | 22 | Single/couple/family modes, placeholder behavior, dynamic items, export/import |
 
-**Total: 109 tests across 34 test suites**
+**Total: 156 tests across 51 test suites**
 
 ## Test Architecture
 

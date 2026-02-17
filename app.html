@@ -430,6 +430,27 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,sans-serif;backgrou
 }
 .add-child-btn:hover{background:rgba(52,211,153,0.25)}
 
+/* === HOUSEHOLD TYPE OPTIONS === */
+.household-options{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.household-option{
+  flex:1;min-width:120px;max-width:160px;background:var(--bg-tertiary);border:2px solid var(--border-subtle);
+  border-radius:12px;padding:20px 16px;cursor:pointer;text-align:center;transition:all 0.3s ease;
+}
+.household-option:hover{border-color:var(--accent-primary);transform:translateY(-2px)}
+.household-option.active{border-color:var(--accent-primary);background:rgba(99,102,241,0.15);box-shadow:0 0 20px rgba(99,102,241,0.2)}
+.household-icon{font-size:32px;margin-bottom:8px}
+.household-label{font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:4px}
+.household-desc{font-size:11px;color:var(--text-tertiary)}
+.household-options-settings{display:flex;gap:8px;flex-wrap:wrap}
+.household-option-sm{
+  display:flex;align-items:center;gap:6px;background:var(--bg-tertiary);border:1px solid var(--border-subtle);
+  border-radius:8px;padding:8px 14px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text-secondary);
+  transition:all 0.3s ease;
+}
+.household-option-sm:hover{border-color:var(--accent-primary);color:var(--text-primary)}
+.household-option-sm.active{border-color:var(--accent-primary);background:rgba(99,102,241,0.15);color:var(--accent-primary)}
+.household-option-sm span{font-size:16px}
+
 /* === SETTINGS BUTTON === */
 .settings-btn{
   background:var(--bg-tertiary);

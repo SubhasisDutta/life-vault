@@ -46,12 +46,30 @@ When you first install the extension, a guided setup wizard helps you personaliz
 | Step | What You'll Configure |
 |------|----------------------|
 | 1. Welcome | Introduction to the vault |
-| 2. Family Info | Your family name (displayed as vault title) |
-| 3. Primary User | Your name |
-| 4. Partner | Your partner/spouse name (your next of kin) |
-| 5. Children | Add one or more children's names |
+| 2. Household Type | Choose Single, Couple, or Family |
+| 3. Basic Info | Your vault name and your name |
+| 4. Partner/Beneficiary | Your partner (couple/family) or primary beneficiary (single) |
+| 5. Children | Add children's names (family only) |
+| 6. Complete | Review your settings and start using the vault |
 
-All names are dynamically used throughout the app via placeholders, making the experience personal to your family.
+The wizard adapts based on your household type - single users skip the children step, while couples and families see relevant fields for their situation.
+
+### Household Types
+
+Life Vault supports three household configurations:
+
+| Type | Description | What's Included |
+|------|-------------|-----------------|
+| **👤 Single** | Just you managing your documents | Primary beneficiary field, no children section |
+| **👫 Couple** | You and your partner | Partner name, no children section |
+| **👨‍👩‍👧‍👦 Family** | Partner and children | Partner name + children list |
+
+**How household type affects the vault:**
+- **Single users**: Child-related checklist items are automatically hidden (no birth certificates for children, etc.)
+- **Couples**: Child items are hidden, partner name is used throughout
+- **Families**: All sections are shown, child items expand dynamically for each child added
+
+You can change your household type anytime in Settings - the vault will automatically adjust which items are displayed.
 
 ### Help Guide
 
@@ -69,9 +87,10 @@ The Help Guide includes searchable content, expandable category details with int
 
 Access settings anytime via the **gear icon** to:
 
+- **Household Type** - Switch between Single, Couple, or Family modes
 - **Appearance** - Switch between light and dark themes
-- Update family member names
-- Add or remove children dynamically
+- Update family member names (your name, partner/beneficiary)
+- Add or remove children dynamically (Family mode only)
 - Customize bank account names and types (Checking, Savings, High-Yield, Foreign, Credit Card, Investment)
 - Add quick links to important documents (Notion, Google Drive, etc.)
 - Export or import your data
@@ -374,6 +393,7 @@ Add a new category object to the `CATEGORIES` array in `data.js`.
 
 | Version | Changes |
 |---------|---------|
+| **v1.8.0** | **Household Type Support** - Choose between Single, Couple, or Family modes in the setup wizard and settings. Single users see a streamlined vault without child-related items. Couples get partner fields without children sections. Families get full access to all features. Child-related checklist items are automatically hidden for single users and couples. Setup wizard adapts dynamically based on your household selection. Existing users are automatically migrated based on their current settings. Empty placeholder fields (partner, children) are handled gracefully |
 | **v1.7.0** | **Category Quick Links** - Add quick links directly to any category header for fast access to relevant resources (SSA Portal, DMV, etc.). Links display in the category header with one-click removal. Auto-adds https:// if missing. Included in export/import. Different from global settings quick links — these are per-category for contextual access |
 | **v1.6.1** | **Improved Help Guide** - Integrated educational resources (videos & articles) directly into each category in the Categories Guide for contextual learning. Expanded FAQ with 15+ questions covering security, usage tips, and best practices. Improved scroll position preservation in help modal |
 | **v1.6.0** | **Digital Scan URL Fields** - Added "Where is the digital scan stored?" URL field to all templates. URLs display as clickable links after saving, with "Open" button to view document in new tab and "Edit" button to modify. URLs are clickable in PDF exports. CSP-compliant implementation |
@@ -396,7 +416,7 @@ The `tests/` directory contains a full test suite covering all core functionalit
 node tests/run-tests-headless.js
 ```
 
-Runs all 138 tests in Node.js with colored terminal output. Returns exit code `0` on success and `1` if any tests fail (CI-friendly).
+Runs all 156 tests in Node.js with colored terminal output. Returns exit code `0` on success and `1` if any tests fail (CI-friendly).
 
 **Requirement:** Node.js 14+
 
@@ -417,7 +437,7 @@ Opens a visual test runner in your default browser showing collapsible pass/fail
 
 ### What's covered
 
-138 tests across 51 suites, including:
+156 tests across 51 suites, including:
 
 - Theme switching (dark ↔ light) and persistence
 - Dynamic item expansion for multiple children
@@ -435,6 +455,7 @@ Opens a visual test runner in your default browser showing collapsible pass/fail
 - Category processing cache invalidation
 - Help modal open/close, section navigation, category expansion, and search
 - Category quick links add/delete, URL auto-formatting, persistence, and export/import
+- Household type (single/couple/family) settings, dynamic behavior, and placeholder handling
 
 See `tests/TESTING.md` for full documentation on the test architecture and how to add new tests.
 

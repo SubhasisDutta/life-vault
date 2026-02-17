@@ -98,10 +98,11 @@ const STORAGE_KEYS = {
 
 // Settings structure
 const DEFAULT_SETTINGS = {
-  familyName: "My Family",
+  familyName: "My Vault",
   primaryUserName: "Primary User",
-  partnerName: "Partner",
-  children: ["Child"],
+  partnerName: "",              // Empty by default for single users
+  children: [],                 // Empty by default
+  householdType: "single",      // "single" | "couple" | "family"
   bankAccounts: [{ name: "...", type: "checking" | "savings" | "hys" | "foreign" | "credit" | "investment" }],
   quickLinks: [{ label: "...", url: "..." }],
   theme: "dark"
@@ -355,6 +356,45 @@ Category quick link actions:
 - `save-category-quick-link`: Save a new link to the category
 - `delete-category-quick-link`: Remove a link from the category
 
+### 9. Household Type System
+
+The app supports three household configurations that affect which items and sections are displayed:
+
+```javascript
+// Household type in settings
+settings.householdType = "single" | "couple" | "family";
+
+// State for confirmation dialog when switching types
+let householdSwitchConfirm = null; // { fromType, toType }
+```
+
+Household type behavior:
+- **Single**: Shows "Primary Beneficiary" field instead of "Partner", hides children section entirely
+- **Couple**: Shows "Partner" field, hides children section
+- **Family**: Shows both "Partner" and "Children" sections
+
+Dynamic item filtering based on household type:
+- Items containing `{firstChild}` are **skipped entirely** when `children.length === 0`
+- The "Additional children" item is skipped when no children or when multiple children are already listed
+- Placeholder `{partner}` falls back to "Next of Kin" when `partnerName` is empty
+- Placeholders `{firstChild}` and `{children}` become empty strings when no children
+
+Household type actions:
+- `select-household`: Set household type during setup wizard
+- `settings-household`: Change household type in settings modal
+
+Migration for existing users:
+```javascript
+// Automatically infer household type from existing data
+if (settings.children && settings.children.length > 0 && settings.children[0]) {
+  settings.householdType = "family";
+} else if (settings.partnerName && settings.partnerName !== "Partner") {
+  settings.householdType = "couple";
+} else {
+  settings.householdType = "single";
+}
+```
+
 ## UI Components
 
 ### Glassmorphism Elements
@@ -451,6 +491,19 @@ Items have three priority levels defined in `data.js` via `PRIORITY_COLORS`:
 - Test deleting a category quick link
 - Test category quick links persist across sessions
 - Test category quick links are included in export/import
+- Test household type defaults to "single" in DEFAULT_SETTINGS
+- Test single user settings (beneficiary name, empty children)
+- Test couple settings (partner name, empty children)
+- Test family settings (partner name, children array)
+- Test {partner} placeholder falls back to "Next of Kin" when empty
+- Test {firstChild} and {children} placeholders become empty when no children
+- Test {firstChild} items are skipped for single users with no children
+- Test {firstChild} items are included when children are configured
+- Test "Additional children" item is skipped when no children
+- Test "Additional children" item is skipped when multiple children exist
+- Test household type is included in export
+- Test household type is preserved on import
+- Test setup wizard adapts steps based on household type
 
 ## Performance Notes
 

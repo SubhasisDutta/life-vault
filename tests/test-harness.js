@@ -18,10 +18,11 @@
 
   // === DEFAULT SETTINGS ===
   const DEFAULT_SETTINGS = {
-    familyName: "My Family",
+    familyName: "My Vault",
     primaryUserName: "Primary User",
-    partnerName: "Partner",
-    children: ["Child"],
+    partnerName: "",
+    children: [],
+    householdType: "single", // "single" | "couple" | "family"
     bankAccounts: [
       { name: "Primary Checking", type: "checking" },
       { name: "Primary Savings", type: "savings" },
@@ -79,14 +80,16 @@
     let result = text
       .replace(/\{familyName\}/g, settings.familyName)
       .replace(/\{primaryUser\}/g, settings.primaryUserName)
-      .replace(/\{partner\}/g, settings.partnerName);
+      .replace(/\{partner\}/g, settings.partnerName || 'Next of Kin');
 
+    // Handle children references
     if (settings.children && settings.children.length > 0) {
-      result = result.replace(/\{firstChild\}/g, settings.children[0] || 'Child');
+      result = result.replace(/\{firstChild\}/g, settings.children[0]);
       result = result.replace(/\{children\}/g, settings.children.join(', '));
     } else {
-      result = result.replace(/\{firstChild\}/g, 'Child');
-      result = result.replace(/\{children\}/g, 'Children');
+      // Remove child placeholders if no children
+      result = result.replace(/\{firstChild\}/g, '');
+      result = result.replace(/\{children\}/g, '');
     }
 
     return result;
@@ -129,7 +132,7 @@
   }
 
   function buildProcessedCategories() {
-    const children = settings.children || ['Child'];
+    const children = settings.children || [];
     const bankAccounts = settings.bankAccounts || [];
 
     return CATEGORIES.map(cat => {
@@ -137,6 +140,11 @@
         let newItems = [];
 
         folder.items.forEach(item => {
+          // Skip child-specific items if no children
+          if (item.text.includes('{firstChild}') && children.length === 0) {
+            return; // Skip this item entirely
+          }
+          // Check if this is a child-specific item that should be expanded for all children
           if (item.text.includes('{firstChild}') && children.length > 1) {
             children.forEach((childName, idx) => {
               const childItem = {
@@ -147,7 +155,9 @@
               newItems.push(childItem);
             });
           } else if (item.text.includes('Additional children') && children.length > 1) {
-            // Skip
+            // Skip this item if we already have multiple children listed
+          } else if (item.text.includes('Additional children') && children.length === 0) {
+            // Skip "Additional children" item if no children at all
           } else {
             newItems.push(item);
           }
