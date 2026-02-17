@@ -764,7 +764,7 @@
   });
 
   // =====================================================
-  // 11. TEMPLATE SAVE
+  // 11. TEMPLATE SAVE & AUTOSAVE
   // =====================================================
 
   describe("Templates: save correctly", function () {
@@ -794,6 +794,58 @@
     });
   });
 
+  describe("Templates: autosave behavior (data operations)", function () {
+    beforeEach();
+    it("multiple saves to same template key update data", function () {
+      const tplK = API.templateKey("identity", 0, 0);
+      // First save
+      API.saveTemplateData(tplK, { person_name: "John", dob: "01/01/1990" });
+      // Autosave updates (simulating debounced saves)
+      API.saveTemplateData(tplK, { person_name: "John Smith", dob: "01/01/1990" });
+      API.saveTemplateData(tplK, { person_name: "John Smith", dob: "01/15/1990" });
+
+      const store = window.__chromeStoreMock;
+      const tplData = store[API.STORAGE_KEYS.templates];
+      assert.equal(tplData[tplK].person_name, "John Smith");
+      assert.equal(tplData[tplK].dob, "01/15/1990");
+    });
+    it("saves URL field data correctly", function () {
+      const tplK = API.templateKey("identity", 0, 0);
+      API.saveTemplateData(tplK, {
+        person_name: "John Smith",
+        digital_scan_url: "https://drive.google.com/file/123"
+      });
+      const store = window.__chromeStoreMock;
+      const tplData = store[API.STORAGE_KEYS.templates];
+      assert.equal(tplData[tplK].digital_scan_url, "https://drive.google.com/file/123");
+    });
+    it("preserves existing fields when updating subset", function () {
+      const tplK = API.templateKey("identity", 0, 0);
+      API.saveTemplateData(tplK, {
+        person_name: "John",
+        dob: "01/01/1990",
+        digital_scan_url: "https://example.com"
+      });
+      // Update only one field (simulating autosave on single field change)
+      const store = window.__chromeStoreMock;
+      const existingData = store[API.STORAGE_KEYS.templates][tplK];
+      API.saveTemplateData(tplK, { ...existingData, person_name: "John Smith" });
+
+      const tplData = store[API.STORAGE_KEYS.templates];
+      assert.equal(tplData[tplK].person_name, "John Smith");
+      assert.equal(tplData[tplK].dob, "01/01/1990");
+      assert.equal(tplData[tplK].digital_scan_url, "https://example.com");
+    });
+    it("saves empty string values correctly", function () {
+      const tplK = API.templateKey("identity", 0, 0);
+      API.saveTemplateData(tplK, { person_name: "", dob: "" });
+      const store = window.__chromeStoreMock;
+      const tplData = store[API.STORAGE_KEYS.templates];
+      assert.equal(tplData[tplK].person_name, "");
+      assert.equal(tplData[tplK].dob, "");
+    });
+  });
+
   // =====================================================
   // 12. EXPORT / IMPORT
   // =====================================================
@@ -812,7 +864,7 @@
       assert.ok(exported.customItems, "Should have customItems");
       assert.ok(exported.categoryQuickLinks, "Should have categoryQuickLinks");
       assert.ok(exported.exportDate, "Should have exportDate");
-      assert.equal(exported.version, "1.6.0");
+      assert.equal(exported.version, "1.9.0");
     });
     it("includes checked items", function () {
       API.reset();

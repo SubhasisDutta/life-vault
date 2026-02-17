@@ -227,7 +227,33 @@ URL field behavior:
 - **Edit button**: Toggles field back to edit mode via `edit-url-field` action
 - **PDF export**: URLs render as clickable links with full URL shown in print mode
 
-### 8. Help Modal System
+### 8. Template Autosave System
+
+Template details (in the details popup modal) are automatically saved as the user types:
+
+```javascript
+// Autosave indicator states
+// 'saving' - Shows "Saving..." with yellow spinning indicator
+// 'saved' - Shows "Autosaved" with green checkmark
+
+// Functions for autosave
+function autoSaveTemplate() { ... }        // Saves template data without re-rendering
+function autoSaveUrlField(fieldId) { ... } // Saves and transitions URL field to link mode
+function updateAutosaveIndicator(status) { ... } // Updates the visual indicator
+```
+
+Autosave behavior:
+- **Debounced save**: Template data is saved 500ms after the user stops typing
+- **Visual feedback**: "Saving..." indicator (yellow) while typing, "Autosaved" (green) after save
+- **Silent save**: Regular input/textarea fields save without re-rendering (preserves cursor position)
+- **URL field transition**: URL fields transition to link display mode on blur (focusout event)
+- **Indicator location**: Autosave indicator appears in the modal header next to the close button
+
+Autosave event listeners:
+- `input` event on `#app`: Triggers debounced `autoSaveTemplate()` when `modalOpen` is truthy
+- `focusout` event on `#app`: Triggers `autoSaveUrlField()` for URL input fields with values
+
+### 9. Help Modal System
 
 The Help modal provides comprehensive documentation with multiple sections:
 
@@ -480,6 +506,12 @@ Items have three priority levels defined in `data.js` via `PRIORITY_COLORS`:
 - Test URL edit button toggles back to input mode
 - Test URL open button opens link in new tab
 - Test URL fields render as clickable links in PDF export
+- Test template autosave triggers on input change (debounced 500ms)
+- Test autosave indicator shows "Saving..." while typing
+- Test autosave indicator shows "Autosaved" after save completes
+- Test URL field transitions to link display on blur (focusout)
+- Test URL field stays in edit mode while focused
+- Test autosave preserves existing field values when updating subset
 - Test help modal opens with default state
 - Test help modal section navigation (overview, categories, features, tips, faq)
 - Test help modal category expansion toggles

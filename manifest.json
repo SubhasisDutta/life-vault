@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Life Vault",
-  "version": "1.7.0",
-  "description": "Comprehensive Digital Legacy & Estate Organization System - Organize everything your family needs in one place with category quick links, digital scan URL links, custom checklist items, and a beautiful Glassmorphism UI",
+  "version": "1.9.0",
+  "description": "Comprehensive Digital Legacy & Estate Organization System - Organize everything your family needs in one place with autosave details, category quick links, digital scan URL links, custom checklist items, and a beautiful Glassmorphism UI",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

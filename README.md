@@ -216,6 +216,16 @@ Every template includes a **"Where is the digital scan stored?"** field:
 - **Easy editing** - Click the pencil icon to modify the URL
 - **PDF export** - URLs appear as clickable links in exported PDFs
 
+### Autosave Details
+
+All template details are **automatically saved** as you type - no save button needed:
+
+- **Visual feedback** - "Saving..." indicator appears while typing, "Autosaved" confirmation when complete
+- **Debounced saves** - Data saves 500ms after you stop typing (prevents excessive saves)
+- **URL field transition** - URL fields automatically switch to clickable link display when you finish editing
+- **Preserved cursor** - Your typing position is maintained during autosave (no disruptive re-renders)
+- **Header indicator** - Autosave status shown in modal header next to the close button
+
 ### International/Foreign Support
 
 The app includes templates for international assets:
@@ -251,7 +261,7 @@ Each folder includes:
 2. **Expand a folder** by clicking on it
 3. **Check off items** as you complete them
 4. **Click "+ Details"** to fill in the detailed template
-5. **Save your details** - button changes to "✓ Details" when saved
+5. **Your details autosave** - watch for the "Autosaved" indicator in the header
 
 ### Filtering & Searching
 
@@ -393,6 +403,7 @@ Add a new category object to the `CATEGORIES` array in `data.js`.
 
 | Version | Changes |
 |---------|---------|
+| **v1.9.0** | **Template Autosave** - All template details now automatically save as you type, eliminating the need for a manual "Save Details" button. Features a visual autosave indicator ("Saving..." / "Autosaved") in the modal header, debounced saves (500ms) to prevent excessive storage writes, and automatic URL field transition to link display when you finish editing. Preserves cursor position during saves for uninterrupted typing |
 | **v1.8.0** | **Household Type Support** - Choose between Single, Couple, or Family modes in the setup wizard and settings. Single users see a streamlined vault without child-related items. Couples get partner fields without children sections. Families get full access to all features. Child-related checklist items are automatically hidden for single users and couples. Setup wizard adapts dynamically based on your household selection. Existing users are automatically migrated based on their current settings. Empty placeholder fields (partner, children) are handled gracefully |
 | **v1.7.0** | **Category Quick Links** - Add quick links directly to any category header for fast access to relevant resources (SSA Portal, DMV, etc.). Links display in the category header with one-click removal. Auto-adds https:// if missing. Included in export/import. Different from global settings quick links — these are per-category for contextual access |
 | **v1.6.1** | **Improved Help Guide** - Integrated educational resources (videos & articles) directly into each category in the Categories Guide for contextual learning. Expanded FAQ with 15+ questions covering security, usage tips, and best practices. Improved scroll position preservation in help modal |
@@ -416,7 +427,7 @@ The `tests/` directory contains a full test suite covering all core functionalit
 node tests/run-tests-headless.js
 ```
 
-Runs all 156 tests in Node.js with colored terminal output. Returns exit code `0` on success and `1` if any tests fail (CI-friendly).
+Runs all 160 tests in Node.js with colored terminal output. Returns exit code `0` on success and `1` if any tests fail (CI-friendly).
 
 **Requirement:** Node.js 14+
 
@@ -437,7 +448,7 @@ Opens a visual test runner in your default browser showing collapsible pass/fail
 
 ### What's covered
 
-156 tests across 51 suites, including:
+160 tests across 52 suites, including:
 
 - Theme switching (dark ↔ light) and persistence
 - Dynamic item expansion for multiple children
@@ -446,6 +457,7 @@ Opens a visual test runner in your default browser showing collapsible pass/fail
 - Custom items in progress calculations and export/import
 - JSON export/import roundtrip and merge with defaults
 - Template data saves for regular and custom items
+- Template autosave behavior (multiple saves, URL fields, field preservation)
 - Priority filter and search functionality
 - Progress calculations (overall, per-category, per-filter)
 - Data structure integrity (CATEGORIES, TEMPLATES, PRIORITY_COLORS)

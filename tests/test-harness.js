@@ -339,7 +339,7 @@
       customItems: customItems,
       categoryQuickLinks: categoryQuickLinks,
       exportDate: new Date().toISOString(),
-      version: "1.6.0"
+      version: "1.9.0"
     };
   }
 

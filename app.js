@@ -1811,7 +1811,13 @@
             <div class="modal-title">${tpl.icon} ${escAttr(replacePlaceholders(tpl.title))}</div>
             <div style="font-size:12px;color:#94A3B8;margin-top:4px">${item ? escAttr(replacePlaceholders(item.text)) : ''}</div>
           </div>
-          <button class="modal-close" data-action="close-modal">&times;</button>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span class="autosave-indicator" style="font-size:12px;color:#94A3B8;display:flex;align-items:center;gap:4px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              Autosaved
+            </span>
+            <button class="modal-close" data-action="close-modal">&times;</button>
+          </div>
         </div>
         <div class="modal-body">`;
 
@@ -1859,7 +1865,6 @@
       });
 
       html += `<div style="display:flex;gap:8px;margin-top:20px;flex-wrap:wrap">
-          <button class="save-btn" data-action="save-template">Save Details</button>
           <button class="export-btn" data-action="export-template">Export as Markdown</button>
           <button class="export-btn" data-action="export-pdf" style="background:rgba(99,102,241,0.15);border-color:rgba(99,102,241,0.3);color:#A5B4FC">Export as PDF</button>
         </div>
@@ -2425,6 +2430,71 @@
       saveData(STORAGE_KEYS.settings, settings);
     }
 
+    // Update autosave indicator in modal
+    function updateAutosaveIndicator(status) {
+      const indicator = document.querySelector('.autosave-indicator');
+      if (!indicator) return;
+
+      if (status === 'saving') {
+        indicator.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin 1s linear infinite"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          Saving...
+        `;
+        indicator.style.color = '#FBBF24';
+      } else {
+        indicator.innerHTML = `
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          Autosaved
+        `;
+        indicator.style.color = '#10B981';
+        // Fade back to neutral after 2 seconds
+        setTimeout(() => {
+          if (indicator) indicator.style.color = '#94A3B8';
+        }, 2000);
+      }
+    }
+
+    // Auto-save template data without closing modal (silent save, no re-render)
+    function autoSaveTemplate() {
+      if (!modalOpen) return;
+      const { catId, folderIdx, itemIdx, templateType, isCustom, customItemId } = modalOpen;
+      const tpl = TEMPLATES[templateType];
+      if (!tpl) return;
+
+      // Determine the correct template key based on whether this is a custom item
+      const tplK = isCustom && customItemId
+        ? customTemplateKey(catId, folderIdx, customItemId)
+        : templateKey(catId, folderIdx, itemIdx);
+
+      const data = {};
+      tpl.sections.forEach(section => {
+        section.fields.forEach(field => {
+          const el = document.getElementById(`field-${field.id}`);
+          if (el) data[field.id] = el.value;
+        });
+      });
+      templateData[tplK] = data;
+      saveData(STORAGE_KEYS.templates, templateData);
+
+      // Update indicator to show saved
+      updateAutosaveIndicator('saved');
+    }
+
+    // Auto-save URL field and transition to link display on blur
+    function autoSaveUrlField(fieldId) {
+      if (!modalOpen) return;
+      const el = document.getElementById(`field-${fieldId}`);
+      if (!el || !el.value.trim()) return;
+
+      // Save first
+      autoSaveTemplate();
+
+      // Then transition URL field to link display
+      const fieldKey = `field-${fieldId}`;
+      delete urlFieldsInEditMode[fieldKey];
+      render();
+    }
+
     function doSaveTemplate() {
       if (!modalOpen) return;
       const { catId, folderIdx, itemIdx, templateType, isCustom, customItemId } = modalOpen;
@@ -2969,7 +3039,26 @@
           autoSaveSettings();
         }, 300);
       }
+
+      // Auto-save template details on input change
+      if (modalOpen) {
+        updateAutosaveIndicator('saving');
+        clearTimeout(window._templateAutoSaveTimeout);
+        window._templateAutoSaveTimeout = setTimeout(function () {
+          autoSaveTemplate();
+        }, 500);
+      }
     });
+
+    // Handle blur on URL fields to transition to link display
+    document.getElementById("app").addEventListener("focusout", function (e) {
+      if (modalOpen && e.target.type === 'url' && e.target.id && e.target.id.startsWith('field-')) {
+        const fieldId = e.target.id.replace('field-', '');
+        if (e.target.value.trim()) {
+          autoSaveUrlField(fieldId);
+        }
+      }
+    }, true);
 
     // Hover effects for dashboard cards
     document.getElementById("app").addEventListener("mouseenter", function (e) {
