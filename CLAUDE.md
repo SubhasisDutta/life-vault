@@ -11,7 +11,7 @@ This file provides context for Claude and other LLMs to understand and work with
 - **No framework dependencies** - Pure vanilla JavaScript, HTML, CSS
 - **CSP compliant** - No inline event handlers; all events use delegated listeners
 - **Chrome Extension** - Uses Manifest V3 with service worker
-- **Local-only storage** - All data stays on device via `chrome.storage.local`
+- **Local-only storage** - All data stays on device via `chrome.storage.local` with unlimited storage enabled
 - **Glassmorphism UI** - Modern frosted glass design with light/dark themes
 
 ## Architecture

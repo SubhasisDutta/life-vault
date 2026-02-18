@@ -294,7 +294,7 @@ Each folder includes:
 
 ```
 life-vault/
-├── manifest.json      # Chrome extension configuration (v1.7.0)
+├── manifest.json      # Chrome extension configuration (v1.9.1)
 ├── app.html           # Main application HTML with Glassmorphism CSS
 ├── app.js             # Core application logic (~2500 lines)
 ├── data.js            # Categories, folders, and checklist items
@@ -312,7 +312,7 @@ life-vault/
 
 ## Data Storage
 
-All data is stored locally using Chrome's `chrome.storage.local` API:
+All data is stored locally using Chrome's `chrome.storage.local` API with **unlimited storage** enabled:
 
 | Key | Purpose |
 |-----|---------|
@@ -403,6 +403,7 @@ Add a new category object to the `CATEGORIES` array in `data.js`.
 
 | Version | Changes |
 |---------|---------|
+| **v1.9.1** | **Unlimited Storage** - Added `unlimitedStorage` permission to remove the 5MB quota limit on local storage, allowing the vault to store extensive document details and templates without space constraints |
 | **v1.9.0** | **Template Autosave** - All template details now automatically save as you type, eliminating the need for a manual "Save Details" button. Features a visual autosave indicator ("Saving..." / "Autosaved") in the modal header, debounced saves (500ms) to prevent excessive storage writes, and automatic URL field transition to link display when you finish editing. Preserves cursor position during saves for uninterrupted typing |
 | **v1.8.0** | **Household Type Support** - Choose between Single, Couple, or Family modes in the setup wizard and settings. Single users see a streamlined vault without child-related items. Couples get partner fields without children sections. Families get full access to all features. Child-related checklist items are automatically hidden for single users and couples. Setup wizard adapts dynamically based on your household selection. Existing users are automatically migrated based on their current settings. Empty placeholder fields (partner, children) are handled gracefully |
 | **v1.7.0** | **Category Quick Links** - Add quick links directly to any category header for fast access to relevant resources (SSA Portal, DMV, etc.). Links display in the category header with one-click removal. Auto-adds https:// if missing. Included in export/import. Different from global settings quick links — these are per-category for contextual access |
