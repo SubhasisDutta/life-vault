@@ -14,6 +14,7 @@ A comprehensive Chrome extension for organizing digital legacy, estate planning,
 ---
 
 ## Features
+![Home](screenshot/Img1.jpg)
 
 ### Glassmorphism UI Design
 
@@ -83,6 +84,10 @@ Access the built-in Help Guide via the **❓ Help** button to:
 
 The Help Guide includes searchable content, expandable category details with integrated educational resources (videos and articles), and a thorough FAQ section to help you understand what information to gather for each section.
 
+![Help Guide](screenshot/Img3.jpg)
+
+![FAQ](screenshot/Img5.jpg)
+
 ### Settings Panel
 
 Access settings anytime via the **gear icon** to:
@@ -94,6 +99,8 @@ Access settings anytime via the **gear icon** to:
 - Customize bank account names and types (Checking, Savings, High-Yield, Foreign, Credit Card, Investment)
 - Add quick links to important documents (Notion, Google Drive, etc.)
 - Export or import your data
+
+![Settings Panel](screenshot/Img4.jpg)
 
 ### Dynamic Checklist Items
 
@@ -112,6 +119,8 @@ The app automatically generates checklist items based on your settings:
   - Foreign accounts → "International Bank Accounts" folder
   - Investment accounts → "Brokerage & Investment Accounts" folder
   - Credit cards → "Credit Cards" folder
+
+![Check List](screenshot/Img2.jpg)
 
 ### Custom Checklist Items
 
