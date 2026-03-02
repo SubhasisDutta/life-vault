@@ -2,6 +2,9 @@
 
 A comprehensive Chrome extension for organizing digital legacy, estate planning, and important family documents. Built to ensure your family has everything they need in one place.
 
+## Chrome Extension
+[Chrome Web Store Install[(https://tinyurl.com/life-vault)
+
 ## Quick Start
 
 1. Download or clone this repository
